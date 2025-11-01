@@ -46,9 +46,8 @@ const Nodes = () => {
     setShowCertModal(true)
     setCertLoading(true)
     try {
-      // Get base URL from axios instance or use window location
-      const baseURL = api.defaults.baseURL || window.location.origin
-      const response = await fetch(`${baseURL}/api/panel/ca`, {
+      // Fetch as text directly - axios baseURL is '/api' so we use window.location
+      const response = await fetch('/api/panel/ca', {
         headers: {
           'Accept': 'text/plain'
         }
@@ -57,10 +56,13 @@ const Nodes = () => {
         throw new Error(`Failed to fetch certificate: ${response.status}`)
       }
       const text = await response.text()
+      if (!text || text.trim().length === 0) {
+        throw new Error('Certificate is empty. Make sure the panel has generated it.')
+      }
       setCertContent(text)
     } catch (error: any) {
       console.error('Failed to fetch CA:', error)
-      alert(`Failed to fetch CA certificate: ${error.message}. Make sure the panel has generated it.`)
+      alert(`Failed to fetch CA certificate: ${error.message}`)
       setShowCertModal(false)
     } finally {
       setCertLoading(false)
