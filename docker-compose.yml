@@ -10,10 +10,7 @@ services:
       context: ./panel
       dockerfile: Dockerfile
     container_name: smite-panel
-    ports:
-      - "${PANEL_PORT:-8000}:8000/tcp"
-      - "${HYSTERIA2_PORT:-443}:443/tcp"
-      - "${HYSTERIA2_PORT:-443}:443/udp"
+    network_mode: host
     volumes:
       - ./panel/data:/app/data
       - ./panel/certs:/app/certs
@@ -32,8 +29,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    networks:
-      - smite-network
 
   # Optional: Separate frontend service (if not served by panel)
   frontend:

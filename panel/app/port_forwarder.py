@@ -63,13 +63,23 @@ class PortForwarder:
                 node_address = node_address.split("://")[-1]
             node_host = node_address.split(":")[0] if ":" in node_address else node_address
             
-            server = await asyncio.start_server(
-                lambda r, w: self._handle_client(r, w, node_host, remote_port),
-                host='0.0.0.0',
-                port=local_port
-            )
-            
-            logger.info(f"Forwarding server started on 0.0.0.0:{local_port} -> {node_host}:{remote_port}")
+            try:
+                server = await asyncio.start_server(
+                    lambda r, w: self._handle_client(r, w, node_host, remote_port),
+                    host='0.0.0.0',
+                    port=local_port,
+                    reuse_address=True,
+                    reuse_port=False
+                )
+                logger.info(f"✅ Forwarding server started on 0.0.0.0:{local_port} -> {node_host}:{remote_port}")
+            except OSError as e:
+                if "Address already in use" in str(e) or e.errno == 98:
+                    logger.error(f"❌ Port {local_port} is already in use. Please ensure:")
+                    logger.error(f"   1. The panel container is in host network mode, OR")
+                    logger.error(f"   2. Port {local_port} is exposed in docker-compose.yml, OR")
+                    logger.error(f"   3. No other service is using port {local_port}")
+                    raise RuntimeError(f"Port {local_port} already in use. Check docker-compose.yml network configuration.")
+                raise
             
             async with server:
                 await server.serve_forever()
@@ -78,6 +88,7 @@ class PortForwarder:
             raise
         except Exception as e:
             logger.error(f"Error in forwarding loop for port {local_port}: {e}")
+            raise
     
     async def _handle_client(self, reader: StreamReader, writer: StreamWriter, target_host: str, target_port: int):
         """Handle a client connection by forwarding to target"""
