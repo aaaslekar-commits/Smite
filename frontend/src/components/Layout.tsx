@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Network, Settings, FileText, Activity, Moon, Sun, Github } from 'lucide-react'
+import { LayoutDashboard, Network, Settings, FileText, Activity, Moon, Sun, Github, Menu, X } from 'lucide-react'
 import SmiteLogoDark from '../assets/SmiteD.png'
 import SmiteLogoLight from '../assets/SmiteL.png'
 
@@ -14,6 +14,7 @@ const Layout = ({ children }: LayoutProps) => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : false
   })
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode))
@@ -23,6 +24,11 @@ const Layout = ({ children }: LayoutProps) => {
       document.documentElement.classList.remove('dark')
     }
   }, [darkMode])
+
+  // Close sidebar when route changes on mobile
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
   
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,21 +41,28 @@ const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="flex h-screen">
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col items-center gap-3 mb-4">
-              <img 
-                src={darkMode ? SmiteLogoDark : SmiteLogoLight} 
-                alt="Smite Logo" 
-                className="h-32 w-32"
-              />
-              <div className="text-center">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Smite</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Control Panel</p>
-              </div>
-            </div>
-            <div className="flex justify-end">
+        <aside
+          className={`fixed lg:static inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
+        >
+          <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              >
+                <X size={20} />
+              </button>
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
@@ -58,9 +71,20 @@ const Layout = ({ children }: LayoutProps) => {
                 {darkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
             </div>
+            <div className="flex flex-col items-center gap-3">
+              <img 
+                src={darkMode ? SmiteLogoDark : SmiteLogoLight} 
+                alt="Smite Logo" 
+                className="h-24 w-24 sm:h-32 sm:w-32"
+              />
+              <div className="text-center">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Smite</h1>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Control Panel</p>
+              </div>
+            </div>
           </div>
           
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
@@ -84,7 +108,7 @@ const Layout = ({ children }: LayoutProps) => {
           {/* Footer */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex flex-col items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap justify-center">
                 <span>Made with</span>
                 <span className="text-red-500">❤️</span>
                 <span>by</span>
@@ -115,7 +139,19 @@ const Layout = ({ children }: LayoutProps) => {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
-          <div className="p-8">
+          {/* Mobile Header */}
+          <div className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+            >
+              <Menu size={24} />
+            </button>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Smite</h1>
+            <div className="w-10" /> {/* Spacer for centering */}
+          </div>
+          
+          <div className="p-4 sm:p-6 lg:p-8">
             {children}
           </div>
         </main>

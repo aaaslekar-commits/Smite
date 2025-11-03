@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Server, Network, Cpu, MemoryStick } from 'lucide-react'
+import { Server, Network, Cpu, MemoryStick, Plus, Activity as ActivityIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import api from '../api/client'
 
@@ -44,14 +44,26 @@ const Dashboard = () => {
   }, [])
 
   if (loading || !status) {
-    return <div className="text-center py-12">Loading...</div>
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-500 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Dashboard</h1>
+    <div className="w-full max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mt-1">Overview of your system status</p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Stats Grid - Responsive */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <StatCard
           title="Total Nodes"
           value={status.nodes.total}
@@ -82,10 +94,17 @@ const Dashboard = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">System Resources</h2>
-          <div className="space-y-4">
+      {/* Bottom Grid - Responsive */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* System Resources Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 transition-shadow hover:shadow-md">
+          <div className="flex items-center gap-3 mb-4 sm:mb-6">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+              <ActivityIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">System Resources</h2>
+          </div>
+          <div className="space-y-4 sm:space-y-5">
             <ProgressBar
               label="CPU"
               value={status.system.cpu_percent}
@@ -99,18 +118,24 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+        {/* Quick Actions Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 transition-shadow hover:shadow-md">
+          <div className="flex items-center gap-3 mb-4 sm:mb-6">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
+          </div>
           <div className="space-y-3">
             <button 
               onClick={() => window.location.href = '/tunnels?create=true'}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
             >
               Create New Tunnel
             </button>
             <button 
               onClick={() => window.location.href = '/nodes?add=true'}
-              className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-all duration-200 font-medium border border-gray-200 dark:border-gray-600"
             >
               Add Node
             </button>
@@ -131,22 +156,41 @@ interface StatCardProps {
 
 const StatCard = ({ title, value, subtitle, icon: Icon, color }: StatCardProps) => {
   const colorClasses = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    orange: 'bg-orange-100 text-orange-600',
+    blue: {
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      icon: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+      accent: 'bg-blue-500'
+    },
+    green: {
+      bg: 'bg-green-50 dark:bg-green-900/20',
+      icon: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+      accent: 'bg-green-500'
+    },
+    purple: {
+      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      icon: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+      accent: 'bg-purple-500'
+    },
+    orange: {
+      bg: 'bg-orange-50 dark:bg-orange-900/20',
+      icon: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+      accent: 'bg-orange-500'
+    },
   }
 
+  const colors = colorClasses[color]
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
-          <Icon size={24} />
+    <div className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-5 transition-all duration-200 hover:shadow-md ${colors.bg}`}>
+      <div className="flex items-start justify-between mb-3">
+        <div className={`p-2.5 sm:p-3 rounded-lg ${colors.icon} transition-transform hover:scale-110`}>
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
         </div>
       </div>
-      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{title}</h3>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
+      <h3 className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1.5">{title}</h3>
+      <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">{value}</p>
+      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
+      <div className={`absolute bottom-0 left-0 right-0 h-1 ${colors.accent} rounded-b-xl`}></div>
     </div>
   )
 }
@@ -159,21 +203,32 @@ interface ProgressBarProps {
 
 const ProgressBar = ({ label, value, color }: ProgressBarProps) => {
   const colorClasses = {
-    purple: 'bg-purple-600',
-    orange: 'bg-orange-600',
+    purple: {
+      bg: 'bg-purple-600 dark:bg-purple-500',
+      gradient: 'from-purple-500 to-purple-600'
+    },
+    orange: {
+      bg: 'bg-orange-600 dark:bg-orange-500',
+      gradient: 'from-orange-500 to-orange-600'
+    },
   }
+
+  const colors = colorClasses[color]
+  const percentage = Math.min(value, 100)
 
   return (
     <div>
-      <div className="flex justify-between text-sm mb-2">
-        <span className="text-gray-700 dark:text-gray-300">{label}</span>
-        <span className="text-gray-500 dark:text-gray-400">{value.toFixed(1)}%</span>
+      <div className="flex justify-between items-center text-sm mb-2.5">
+        <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
+        <span className="font-semibold text-gray-900 dark:text-white">{value.toFixed(1)}%</span>
       </div>
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
         <div
-          className={`h-2 rounded-full ${colorClasses[color]}`}
-          style={{ width: `${Math.min(value, 100)}%` }}
-        />
+          className={`h-2.5 rounded-full bg-gradient-to-r ${colors.gradient} transition-all duration-500 ease-out relative overflow-hidden`}
+          style={{ width: `${percentage}%` }}
+        >
+          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+        </div>
       </div>
     </div>
   )
