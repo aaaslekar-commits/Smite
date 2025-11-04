@@ -20,17 +20,20 @@ class GostForwarder:
     def start_forward(self, tunnel_id: str, local_port: int, node_address: str, remote_port: int, tunnel_type: str = "tcp") -> bool:
         """
         Start forwarding using gost
-        
+
         Args:
             tunnel_id: Unique tunnel identifier
             local_port: Port on panel to listen on
             node_address: Node IP address (host only, no port)
             remote_port: Port on node to forward to
             tunnel_type: Type of forwarding (tcp, udp, ws, grpc)
-        
+
         Returns:
             True if started successfully
         """
+        import sys
+        debug_print = lambda msg: print(f"GOST_FORWARDER: {msg}", file=sys.stderr, flush=True)
+        debug_print(f"start_forward called: tunnel_id={tunnel_id}, local_port={local_port}, node_address={node_address}, remote_port={remote_port}, tunnel_type={tunnel_type}")
         try:
             # Stop existing forward if any
             if tunnel_id in self.active_forwards:
@@ -80,32 +83,44 @@ class GostForwarder:
                     raise RuntimeError("gost binary not found at /usr/local/bin/gost or in PATH")
             
             cmd[0] = gost_binary
+            debug_print(f"Command to execute: {' '.join(cmd)}")
             logger.info(f"Starting gost with command: {' '.join(cmd)}")
             
             # Start gost process
             try:
+                debug_print(f"About to start subprocess.Popen with cmd={cmd}")
                 proc = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=str(self.config_dir)
                 )
+                debug_print(f"subprocess.Popen returned, PID={proc.pid}")
             except Exception as e:
                 error_msg = f"Failed to start gost process: {e}"
+                debug_print(f"ERROR in subprocess.Popen: {error_msg}")
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
             
             # Wait a moment to check if process started successfully
+            debug_print(f"Waiting 0.5s to check if process is still alive...")
             time.sleep(0.5)
-            if proc.poll() is not None:
+            poll_result = proc.poll()
+            debug_print(f"Process poll result: {poll_result} (None means still running)")
+            if poll_result is not None:
                 # Process died immediately
+                debug_print(f"Process died immediately, exit code: {poll_result}")
                 try:
                     stderr = proc.stderr.read().decode() if proc.stderr else "Unknown error"
                     stdout = proc.stdout.read().decode() if proc.stdout else ""
-                except:
-                    stderr = "Could not read error output"
+                    debug_print(f"stderr: {stderr}")
+                    debug_print(f"stdout: {stdout}")
+                except Exception as e:
+                    stderr = f"Could not read error output: {e}"
                     stdout = ""
+                    debug_print(f"Exception reading process output: {e}")
                 error_msg = f"gost failed to start (exit code: {proc.returncode}): {stderr or stdout}"
+                debug_print(f"ERROR: {error_msg}")
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
             
@@ -117,11 +132,15 @@ class GostForwarder:
                 "tunnel_type": tunnel_type
             }
             
+            debug_print(f"✅ Successfully started gost forwarding, PID={proc.pid}")
             logger.info(f"✅ Started gost forwarding for tunnel {tunnel_id}: {tunnel_type}://:{local_port} -> {node_address}:{remote_port}")
             logger.info(f"Gost process PID: {proc.pid}")
             return True
             
         except Exception as e:
+            import traceback
+            debug_print(f"EXCEPTION in start_forward: {e}")
+            debug_print(f"Traceback: {traceback.format_exc()}")
             logger.error(f"Failed to start gost forwarding for tunnel {tunnel_id}: {e}")
             raise
     

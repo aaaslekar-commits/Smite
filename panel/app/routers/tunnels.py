@@ -154,10 +154,13 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                     if remote_port and hasattr(request.app.state, 'gost_forwarder'):
                         debug_print(f"DEBUG: Conditions met - will start gost forwarding")
                         # Get node IP address from metadata
+                        debug_print(f"DEBUG: Getting node_address from metadata, node.node_metadata={node.node_metadata}")
                         node_address = node.node_metadata.get("ip_address") if node.node_metadata else None
+                        debug_print(f"DEBUG: node_address from ip_address field: {node_address}")
                         if not node_address:
                             # Try to extract from api_address
                             api_address = node.node_metadata.get("api_address", "") if node.node_metadata else ""
+                            debug_print(f"DEBUG: api_address={api_address}")
                             if api_address:
                                 # Extract host from http://host:port or host:port
                                 if "://" in api_address:
@@ -166,11 +169,15 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                                     node_address = api_address.split(":")[0]
                                 else:
                                     node_address = api_address
+                                debug_print(f"DEBUG: Extracted node_address from api_address: {node_address}")
                         
+                        debug_print(f"DEBUG: Final node_address={node_address}")
                         logger.info(f"Tunnel {db_tunnel.id}: node_address={node_address}")
                         if node_address:
+                            debug_print(f"DEBUG: node_address is truthy, about to call start_forward()")
                             try:
                                 # Use gost for forwarding
+                                debug_print(f"DEBUG: About to call start_forward() with: tunnel_id={db_tunnel.id}, local_port={remote_port}, node_address={node_address}, remote_port={remote_port}, tunnel_type={db_tunnel.type}")
                                 logger.info(f"Starting gost forwarding for tunnel {db_tunnel.id}: {db_tunnel.type}://:{remote_port} -> {node_address}:{remote_port}")
                                 request.app.state.gost_forwarder.start_forward(
                                     tunnel_id=db_tunnel.id,
@@ -179,8 +186,12 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                                     remote_port=int(remote_port),
                                     tunnel_type=db_tunnel.type
                                 )
+                                debug_print(f"DEBUG: start_forward() returned successfully")
                                 logger.info(f"Successfully started gost forwarding for tunnel {db_tunnel.id}")
                             except Exception as e:
+                                debug_print(f"DEBUG: Exception in start_forward(): {e}")
+                                import traceback
+                                debug_print(f"DEBUG: Traceback: {traceback.format_exc()}")
                                 # Log but don't fail tunnel creation
                                 error_msg = str(e)
                                 logger.error(f"Failed to start gost forwarding for tunnel {db_tunnel.id}: {error_msg}", exc_info=True)
