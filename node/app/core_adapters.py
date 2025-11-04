@@ -42,8 +42,8 @@ class TCPAdapter:
     
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply TCP tunnel - forwards TCP connections using dokodemo-door"""
-        # Use remote_port for the listening port, or listen_port as fallback
-        listen_port = spec.get("remote_port") or spec.get("listen_port", 10000)
+        # Use listen_port for the listening port (node side), remote_port is panel side
+        listen_port = spec.get("listen_port") or spec.get("remote_port", 10000)
         # Forward to local service (default to 127.0.0.1:same_port, or use forward_to if specified)
         # For 3x-ui, it typically listens on 127.0.0.1:2053 or similar
         forward_addr = spec.get("forward_to", "127.0.0.1:2053")
@@ -188,8 +188,8 @@ class UDPAdapter(TCPAdapter):
     
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply UDP tunnel - VLESS with mKCP transport"""
-        # Use remote_port for the listening port, or listen_port as fallback
-        listen_port = spec.get("remote_port") or spec.get("listen_port", 10000)
+        # Use listen_port for the listening port (node side), remote_port is panel side
+        listen_port = spec.get("listen_port") or spec.get("remote_port", 10000)
         
         # For UDP, we can either forward to a local service or create a VLESS server
         forward_to = spec.get("forward_to")
@@ -303,8 +303,8 @@ class WSAdapter(TCPAdapter):
     
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply WebSocket tunnel"""
-        # Use remote_port for the listening port, or listen_port as fallback
-        listen_port = spec.get("remote_port") or spec.get("listen_port", 10000)
+        # Use listen_port for the listening port (node side), remote_port is panel side
+        listen_port = spec.get("listen_port") or spec.get("remote_port", 10000)
         
         config = {
             "log": {"loglevel": "warning"},
@@ -367,8 +367,8 @@ class GRPCAdapter(TCPAdapter):
     
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply gRPC tunnel"""
-        # Use remote_port for the listening port, or listen_port as fallback
-        listen_port = spec.get("remote_port") or spec.get("listen_port", 10000)
+        # Use listen_port for the listening port (node side), remote_port is panel side
+        listen_port = spec.get("listen_port") or spec.get("remote_port", 10000)
         
         config = {
             "log": {"loglevel": "warning"},
