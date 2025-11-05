@@ -195,19 +195,33 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 
                 if remote_addr and token and proxy_port and hasattr(request.app.state, 'rathole_server_manager'):
                     try:
+                        logger.info(f"Starting Rathole server for tunnel {db_tunnel.id}: remote_addr={remote_addr}, token={token}, proxy_port={proxy_port}")
                         request.app.state.rathole_server_manager.start_server(
                             tunnel_id=db_tunnel.id,
                             remote_addr=remote_addr,
                             token=token,
                             proxy_port=int(proxy_port)
                         )
+                        logger.info(f"Successfully started Rathole server for tunnel {db_tunnel.id}")
                     except Exception as e:
-                        # Log but don't fail tunnel creation
-                        import logging
                         error_msg = str(e)
-                        logging.error(f"Failed to start Rathole server: {error_msg}")
+                        logger.error(f"Failed to start Rathole server for tunnel {db_tunnel.id}: {error_msg}", exc_info=True)
                         db_tunnel.status = "error"
                         db_tunnel.error_message = f"Rathole server error: {error_msg}"
+                else:
+                    missing = []
+                    if not remote_addr:
+                        missing.append("remote_addr")
+                    if not token:
+                        missing.append("token")
+                    if not proxy_port:
+                        missing.append("proxy_port")
+                    if not hasattr(request.app.state, 'rathole_server_manager'):
+                        missing.append("rathole_server_manager")
+                    logger.warning(f"Tunnel {db_tunnel.id}: Missing required fields for Rathole server: {missing}")
+                    if not remote_addr or not token or not proxy_port:
+                        db_tunnel.status = "error"
+                        db_tunnel.error_message = f"Missing required fields for Rathole: {missing}"
         except Exception as e:
             # Catch any exception in the forwarding setup
             logger.error(f"Exception in forwarding setup for tunnel {db_tunnel.id}: {e}", exc_info=True)
