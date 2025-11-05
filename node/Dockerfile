@@ -9,18 +9,7 @@ RUN apt-get update && apt-get install -y \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Stage 2: Install xray-core (cached layer)
-FROM base AS xray-bin
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then ARCH="64"; \
-    elif [ "$ARCH" = "aarch64" ]; then ARCH="arm64-v8a"; \
-    else ARCH="64"; fi && \
-    curl -L https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${ARCH}.zip -o /tmp/xray.zip && \
-    unzip /tmp/xray.zip -d /usr/local/bin/ && \
-    chmod +x /usr/local/bin/xray && \
-    rm /tmp/xray.zip
-
-# Stage 3: Install rathole (cached layer)
+# Stage 2: Install rathole (cached layer)
 FROM base AS rathole-bin
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; \
@@ -49,7 +38,7 @@ RUN ARCH=$(uname -m) && \
     rathole --version && \
     rm -rf /tmp/rathole*
 
-# Stage 4: Python dependencies (cached layer)
+# Stage 3: Python dependencies (cached layer)
 FROM base AS deps
 WORKDIR /app
 COPY requirements.txt .
@@ -57,12 +46,11 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
-# Stage 5: Final image
+# Stage 4: Final image
 FROM base
 WORKDIR /app
 
 # Copy binaries from binary stages
-COPY --from=xray-bin /usr/local/bin/xray /usr/local/bin/xray
 COPY --from=rathole-bin /usr/local/bin/rathole /usr/local/bin/rathole
 
 # Copy Python dependencies from deps stage
