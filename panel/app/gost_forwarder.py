@@ -183,11 +183,22 @@ class GostForwarder:
                 import socket
                 port_listening = False
                 try:
+                    # Try IPv4 first
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.settimeout(1)
                     result = sock.connect_ex(('127.0.0.1', local_port))
                     sock.close()
                     port_listening = (result == 0)
+                    if not port_listening:
+                        # Try IPv6 (gost might bind to IPv6)
+                        try:
+                            sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                            sock.settimeout(1)
+                            result = sock.connect_ex(('::1', local_port))
+                            sock.close()
+                            port_listening = (result == 0)
+                        except:
+                            pass
                     if not port_listening:
                         # Check again - sometimes it takes a moment
                         time.sleep(0.5)
@@ -195,9 +206,20 @@ class GostForwarder:
                         sock.settimeout(1)
                         result = sock.connect_ex(('127.0.0.1', local_port))
                         sock.close()
-                        port_listening = (result == 0)
+                        if result == 0:
+                            port_listening = True
+                        else:
+                            # Try IPv6 again
+                            try:
+                                sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                                sock.settimeout(1)
+                                result = sock.connect_ex(('::1', local_port))
+                                sock.close()
+                                port_listening = (result == 0)
+                            except:
+                                pass
                         
-                    # Check if process is still alive
+                    # Check if process is still alive (most important check)
                     poll_result = proc.poll()
                     if poll_result is not None:
                         # Process died - try to read error from log
@@ -215,10 +237,11 @@ class GostForwarder:
                             logger.error(error_msg)
                             raise RuntimeError(error_msg)
                     elif not port_listening:
-                        logger.warning(f"Port {local_port} not listening after gost start, but process is running. PID: {proc.pid}")
+                        # Process is alive but port check failed - just warn, don't fail
+                        logger.warning(f"Port {local_port} not listening after gost start (checked IPv4 and IPv6), but process is running. PID: {proc.pid}")
                 except Exception as e:
                     logger.warning(f"Could not verify port {local_port} is listening: {e}")
-                    # Still check if process is alive
+                    # Still check if process is alive (most important)
                     poll_result = proc.poll()
                     if poll_result is not None:
                         error_msg = f"gost process died during port check (exit code: {poll_result})"
