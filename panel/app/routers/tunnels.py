@@ -265,58 +265,104 @@ async def update_tunnel(
     
     # Re-apply tunnel if spec changed
     if spec_changed:
-        result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
-        node = result.scalar_one_or_none()
-        if node:
-            client = Hysteria2Client()
-            try:
-                response = await client.send_to_node(
-                    node_id=node.id,
-                    endpoint="/api/agent/tunnels/apply",
-                    data={
-                        "tunnel_id": tunnel.id,
-                        "core": tunnel.core,
-                        "type": tunnel.type,
-                        "spec": tunnel.spec
-                    }
-                )
+        try:
+            # For GOST tunnels, restart gost forwarding
+            needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and tunnel.core == "xray"
+            needs_rathole_server = tunnel.core == "rathole"
+            needs_node_apply = tunnel.core == "rathole"
+            
+            if needs_gost_forwarding:
+                # Restart gost forwarding with new spec
+                panel_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
+                forward_to = tunnel.spec.get("forward_to")
                 
-                if response.get("status") == "success":
-                    tunnel.status = "active"
-                    tunnel.error_message = None
-                    
-                    # Update rathole server if needed
-                    if tunnel.core == "rathole" and hasattr(request.app.state, 'rathole_server_manager'):
-                        remote_addr = tunnel.spec.get("remote_addr")
-                        token = tunnel.spec.get("token")
-                        proxy_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
-                        
-                        if remote_addr and token and proxy_port:
-                            try:
-                                request.app.state.rathole_server_manager.start_server(
-                                    tunnel_id=tunnel.id,
-                                    remote_addr=remote_addr,
-                                    token=token,
-                                    proxy_port=int(proxy_port)
-                                )
-                            except Exception as e:
-                                import logging
-                                logging.error(f"Failed to restart Rathole server: {e}")
-                                tunnel.status = "error"
-                                tunnel.error_message = f"Rathole server error: {str(e)}"
+                if panel_port and forward_to and hasattr(request.app.state, 'gost_forwarder'):
+                    try:
+                        # Stop old forwarding
+                        request.app.state.gost_forwarder.stop_forward(tunnel.id)
+                        # Start new forwarding
+                        logger.info(f"Restarting gost forwarding for tunnel {tunnel.id}: {tunnel.type}://:{panel_port} -> {forward_to}")
+                        request.app.state.gost_forwarder.start_forward(
+                            tunnel_id=tunnel.id,
+                            local_port=int(panel_port),
+                            forward_to=forward_to,
+                            tunnel_type=tunnel.type
+                        )
+                        tunnel.status = "active"
+                        tunnel.error_message = None
+                        logger.info(f"Successfully restarted gost forwarding for tunnel {tunnel.id}")
+                    except Exception as e:
+                        error_msg = str(e)
+                        logger.error(f"Failed to restart gost forwarding for tunnel {tunnel.id}: {error_msg}", exc_info=True)
+                        tunnel.status = "error"
+                        tunnel.error_message = f"Gost forwarding error: {error_msg}"
                 else:
-                    tunnel.status = "error"
-                    tunnel.error_message = f"Node error: {response.get('message', 'Unknown error')}"
+                    if not forward_to:
+                        tunnel.status = "error"
+                        tunnel.error_message = "forward_to is required for gost tunnels"
+            
+            elif needs_rathole_server:
+                # Restart Rathole server
+                if hasattr(request.app.state, 'rathole_server_manager'):
+                    remote_addr = tunnel.spec.get("remote_addr")
+                    token = tunnel.spec.get("token")
+                    proxy_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
                     
-                await db.commit()
-                await db.refresh(tunnel)
-            except Exception as e:
-                import logging
-                logging.error(f"Failed to re-apply tunnel: {e}")
-                tunnel.status = "error"
-                tunnel.error_message = f"Re-apply error: {str(e)}"
-                await db.commit()
-                await db.refresh(tunnel)
+                    if remote_addr and token and proxy_port:
+                        try:
+                            # Stop old server
+                            request.app.state.rathole_server_manager.stop_server(tunnel.id)
+                            # Start new server
+                            request.app.state.rathole_server_manager.start_server(
+                                tunnel_id=tunnel.id,
+                                remote_addr=remote_addr,
+                                token=token,
+                                proxy_port=int(proxy_port)
+                            )
+                            tunnel.status = "active"
+                            tunnel.error_message = None
+                        except Exception as e:
+                            logger.error(f"Failed to restart Rathole server: {e}")
+                            tunnel.status = "error"
+                            tunnel.error_message = f"Rathole server error: {str(e)}"
+            
+            # For Rathole tunnels, also update node
+            if needs_node_apply and tunnel.node_id:
+                result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
+                node = result.scalar_one_or_none()
+                if node:
+                    client = Hysteria2Client()
+                    try:
+                        response = await client.send_to_node(
+                            node_id=node.id,
+                            endpoint="/api/agent/tunnels/apply",
+                            data={
+                                "tunnel_id": tunnel.id,
+                                "core": tunnel.core,
+                                "type": tunnel.type,
+                                "spec": tunnel.spec
+                            }
+                        )
+                        
+                        if response.get("status") == "success":
+                            tunnel.status = "active"
+                            tunnel.error_message = None
+                        else:
+                            tunnel.status = "error"
+                            tunnel.error_message = f"Node error: {response.get('message', 'Unknown error')}"
+                    except Exception as e:
+                        logger.error(f"Failed to re-apply tunnel to node: {e}")
+                        tunnel.status = "error"
+                        tunnel.error_message = f"Node error: {str(e)}"
+            
+            await db.commit()
+            await db.refresh(tunnel)
+        except Exception as e:
+            logger.error(f"Failed to re-apply tunnel: {e}", exc_info=True)
+            tunnel.status = "error"
+            tunnel.error_message = f"Re-apply error: {str(e)}"
+            await db.commit()
+            await db.refresh(tunnel)
     
     return tunnel
 
