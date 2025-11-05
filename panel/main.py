@@ -98,8 +98,11 @@ async def _restore_forwards():
                 if not needs_gost_forwarding:
                     continue
                 
-                remote_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
-                if not remote_port:
+                # panel_port: port on panel where gost listens (remote_port from spec = 8080)
+                # node_port: port on node where xray listens (listen_port from spec = 10000)
+                panel_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
+                node_port = tunnel.spec.get("listen_port") or tunnel.spec.get("remote_port")
+                if not panel_port or not node_port:
                     continue
                 
                 # Get node
@@ -126,12 +129,12 @@ async def _restore_forwards():
                 
                 # Start gost forwarding
                 try:
-                    logger.info(f"Restoring gost forwarding for tunnel {tunnel.id}: {tunnel.type}://:{remote_port} -> {node_address}:{remote_port}")
+                    logger.info(f"Restoring gost forwarding for tunnel {tunnel.id}: {tunnel.type}://:{panel_port} -> {node_address}:{node_port}")
                     gost_forwarder.start_forward(
                         tunnel_id=tunnel.id,
-                        local_port=int(remote_port),
+                        local_port=int(panel_port),
                         node_address=node_address,
-                        remote_port=int(remote_port),
+                        remote_port=int(node_port),
                         tunnel_type=tunnel.type
                     )
                     logger.info(f"Successfully restored gost forwarding for tunnel {tunnel.id}")
