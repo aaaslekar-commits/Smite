@@ -149,7 +149,7 @@ const Tunnels = () => {
               <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                 <span className="text-sm text-gray-500 dark:text-gray-400">Listen Port</span>
                 <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {tunnel.spec?.remote_port || tunnel.spec?.listen_port || 'N/A'}
+                  {tunnel.spec?.listen_port || tunnel.spec?.remote_port || 'N/A'}
                 </span>
               </div>
               {tunnel.core === 'rathole' && (
@@ -168,11 +168,11 @@ const Tunnels = () => {
                   </div>
                 </>
               )}
-              {tunnel.core === 'xray' && tunnel.spec?.forward_to && (
+              {tunnel.core === 'xray' && (tunnel.spec?.forward_to || (tunnel.spec?.remote_ip && tunnel.spec?.remote_port)) && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Forward To</span>
                   <span className="text-sm font-medium text-gray-900 dark:text-white break-all ml-2">
-                    {tunnel.spec.forward_to}
+                    {tunnel.spec.forward_to || `${tunnel.spec.remote_ip}:${tunnel.spec.remote_port}`}
                   </span>
                 </div>
               )}
@@ -220,17 +220,16 @@ interface EditTunnelModalProps {
 }
 
 const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) => {
-  // Parse forward_to to extract remote_ip and remote_port
-  const forwardTo = tunnel.spec?.forward_to || ''
-  const forwardParts = forwardTo.split(':')
-  const parsedRemoteIp = forwardParts.length >= 2 ? forwardParts[0] : '127.0.0.1'
-  const parsedRemotePort = forwardParts.length >= 2 ? parseInt(forwardParts[1]) || 8080 : 8080
+  // Extract remote_ip and remote_port from spec (Shifter pattern)
+  // Fallback to parsing forward_to for backward compatibility
+  const remoteIp = tunnel.spec?.remote_ip || (tunnel.spec?.forward_to ? tunnel.spec.forward_to.split(':')[0] : '127.0.0.1')
+  const remotePort = tunnel.spec?.remote_port || (tunnel.spec?.forward_to ? parseInt(tunnel.spec.forward_to.split(':')[1]) || 8080 : 8080)
   
   const [formData, setFormData] = useState({
     name: tunnel.name,
-    local_port: tunnel.spec?.remote_port || tunnel.spec?.listen_port || 8080,
-    remote_ip: parsedRemoteIp,
-    remote_port: parsedRemotePort,
+    local_port: tunnel.spec?.listen_port || tunnel.spec?.remote_port || 8080,  // listen_port is panel port
+    remote_ip: remoteIp,
+    remote_port: remotePort,
     rathole_remote_addr: tunnel.spec?.remote_addr || '',
     rathole_local_port: tunnel.spec?.local_addr ? tunnel.spec.local_addr.split(':')[1] : '',
   })
@@ -240,7 +239,8 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
     try {
       // Build updated spec
       const updatedSpec = { ...tunnel.spec }
-      updatedSpec.remote_port = parseInt(formData.local_port.toString()) || 8080
+      // listen_port: panel port where clients connect (Shifter pattern)
+      updatedSpec.listen_port = parseInt(formData.local_port.toString()) || 8080
       
       if (tunnel.core === 'rathole') {
         if (formData.rathole_remote_addr) {
@@ -255,6 +255,9 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
       } else if (tunnel.core === 'xray' && (tunnel.type === 'tcp' || tunnel.type === 'udp' || tunnel.type === 'ws' || tunnel.type === 'grpc' || tunnel.type === 'tcpmux')) {
         const remoteIp = formData.remote_ip || '127.0.0.1'
         const remotePort = parseInt(formData.remote_port.toString()) || 8080
+        updatedSpec.remote_ip = remoteIp
+        updatedSpec.remote_port = remotePort
+        // Also set forward_to for backward compatibility
         updatedSpec.forward_to = `${remoteIp}:${remotePort}`
       }
 
@@ -455,12 +458,16 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
     e.preventDefault()
     try {
       const spec = getSpecForType(formData.core, formData.type)
-      spec.remote_port = parseInt(formData.local_port.toString()) || 8080
+      // listen_port: panel port where clients connect (Shifter pattern)
+      spec.listen_port = parseInt(formData.local_port.toString()) || 8080
       
-      // For GOST tunnels (TCP/UDP/WS/gRPC/TCPMux), add forward_to from remote_ip and remote_port
+      // For GOST tunnels (TCP/UDP/WS/gRPC/TCPMux), set remote_ip and remote_port (Shifter pattern)
       if (formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'udp' || formData.type === 'ws' || formData.type === 'grpc' || formData.type === 'tcpmux')) {
         const remoteIp = formData.remote_ip || '127.0.0.1'
         const remotePort = parseInt(formData.remote_port.toString()) || 8080
+        spec.remote_ip = remoteIp
+        spec.remote_port = remotePort
+        // Also set forward_to for backward compatibility
         spec.forward_to = `${remoteIp}:${remotePort}`
       }
       
@@ -493,7 +500,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
 
   const getSpecForType = (core: string, type: string): Record<string, any> => {
     const baseSpec: Record<string, any> = {
-      listen_port: 10000,
+      // listen_port will be set from formData.local_port
     }
 
     // Rathole is a separate core, not a type

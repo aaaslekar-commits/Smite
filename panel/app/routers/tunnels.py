@@ -131,8 +131,18 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
             needs_rathole_server = db_tunnel.core == "rathole"
             
             if needs_gost_forwarding:
-                panel_port = db_tunnel.spec.get("remote_port") or db_tunnel.spec.get("listen_port")
+                # listen_port: panel port where clients connect
+                # forward_to: target address (can be from forward_to field or constructed from remote_ip:remote_port)
+                listen_port = db_tunnel.spec.get("listen_port")
                 forward_to = db_tunnel.spec.get("forward_to")
+                
+                # If forward_to not set, construct from remote_ip and remote_port (Shifter pattern)
+                if not forward_to:
+                    remote_ip = db_tunnel.spec.get("remote_ip", "127.0.0.1")
+                    remote_port = db_tunnel.spec.get("remote_port", 8080)
+                    forward_to = f"{remote_ip}:{remote_port}"
+                
+                panel_port = listen_port or db_tunnel.spec.get("remote_port")  # Fallback to remote_port for backward compat
                 
                 if panel_port and forward_to and hasattr(request.app.state, 'gost_forwarder'):
                     try:
@@ -273,8 +283,18 @@ async def update_tunnel(
             
             if needs_gost_forwarding:
                 # Restart gost forwarding with new spec
-                panel_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
+                # listen_port: panel port where clients connect
+                # forward_to: target address (can be from forward_to field or constructed from remote_ip:remote_port)
+                listen_port = tunnel.spec.get("listen_port")
                 forward_to = tunnel.spec.get("forward_to")
+                
+                # If forward_to not set, construct from remote_ip and remote_port (Shifter pattern)
+                if not forward_to:
+                    remote_ip = tunnel.spec.get("remote_ip", "127.0.0.1")
+                    remote_port = tunnel.spec.get("remote_port", 8080)
+                    forward_to = f"{remote_ip}:{remote_port}"
+                
+                panel_port = listen_port or tunnel.spec.get("remote_port")  # Fallback to remote_port for backward compat
                 
                 if panel_port and forward_to and hasattr(request.app.state, 'gost_forwarder'):
                     try:

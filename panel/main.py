@@ -98,10 +98,18 @@ async def _restore_forwards():
                 if not needs_gost_forwarding:
                     continue
                 
-                # panel_port: port on panel where gost listens (remote_port from spec)
-                # forward_to: target address:port to forward to directly
-                panel_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
+                # listen_port: panel port where clients connect
+                # forward_to: target address (can be from forward_to field or constructed from remote_ip:remote_port)
+                listen_port = tunnel.spec.get("listen_port")
                 forward_to = tunnel.spec.get("forward_to")
+                
+                # If forward_to not set, construct from remote_ip and remote_port (Shifter pattern)
+                if not forward_to:
+                    remote_ip = tunnel.spec.get("remote_ip", "127.0.0.1")
+                    remote_port = tunnel.spec.get("remote_port", 8080)
+                    forward_to = f"{remote_ip}:{remote_port}"
+                
+                panel_port = listen_port or tunnel.spec.get("remote_port")  # Fallback to remote_port for backward compat
                 if not panel_port or not forward_to:
                     logger.warning(f"Tunnel {tunnel.id}: Missing panel_port or forward_to, skipping restore")
                     continue
