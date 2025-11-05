@@ -123,6 +123,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add logging middleware
+from app.routers.agent import LoggingMiddleware
+app.add_middleware(LoggingMiddleware)
+
 app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
 
 

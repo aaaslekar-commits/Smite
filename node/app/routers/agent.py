@@ -1,9 +1,25 @@
 """Agent API endpoints"""
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any
+import logging
+import sys
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Add middleware to log all requests
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.url.path == "/api/agent/tunnels/apply":
+            body = await request.body()
+            print(f"🔵 MIDDLEWARE: {request.method} {request.url.path}", file=sys.stderr, flush=True)
+            print(f"🔵 MIDDLEWARE: Body: {body}", file=sys.stderr, flush=True)
+        response = await call_next(request)
+        if request.url.path == "/api/agent/tunnels/apply":
+            print(f"🔵 MIDDLEWARE: Response status: {response.status_code}", file=sys.stderr, flush=True)
+        return response
 
 
 class TunnelApply(BaseModel):
