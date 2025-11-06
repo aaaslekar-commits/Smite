@@ -3,11 +3,11 @@
 
 services:
   smite-node:
+    image: ghcr.io/zzedix/smite-node:${SMITE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
     container_name: smite-node
-    image: smite-node:latest
     network_mode: host
     cap_add:
       - NET_ADMIN

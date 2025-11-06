@@ -154,6 +154,18 @@ sysctl -p > /dev/null 2>&1 || true
 sysctl -w net.ipv4.ip_forward=1 > /dev/null 2>&1 || true
 sysctl -w net.ipv6.conf.all.forwarding=1 > /dev/null 2>&1 || true
 
+# Pull or build Docker image
+echo ""
+echo "Pulling Docker image from GitHub Container Registry..."
+export SMITE_VERSION=${SMITE_VERSION:-latest}
+
+if docker pull ghcr.io/zzedix/smite-node:${SMITE_VERSION} 2>/dev/null; then
+    echo "✅ Node image pulled from GHCR"
+else
+    echo "⚠️  Prebuilt image not found, will build locally..."
+    docker compose build 2>&1 || true
+fi
+
 # Start services
 echo ""
 echo "Starting Smite Node..."

@@ -6,6 +6,7 @@
 
 services:
   smite-panel:
+    image: ghcr.io/zzedix/smite-panel:${SMITE_VERSION:-latest}
     build:
       context: .
       dockerfile: panel/Dockerfile

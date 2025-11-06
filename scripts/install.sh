@@ -295,24 +295,26 @@ if [ -d "frontend" ]; then
     fi
 fi
 
-# Build Docker images in parallel
+# Pull or build Docker images
 echo ""
-echo "Building Docker images (this may take a moment on first run)..."
+echo "Pulling Docker images from GitHub Container Registry..."
 echo "  Using Docker BuildKit for faster builds..."
 
-# Try to pull prebuilt images first (optional - will fallback to build if not available)
-echo "  Checking for prebuilt images (optional)..."
-if docker pull ghcr.io/zzedix/smite-panel:latest 2>/dev/null; then
-    docker tag ghcr.io/zzedix/smite-panel:latest smite-panel:latest 2>/dev/null
-    progress "Prebuilt panel image found"
-fi
+# Set version (default to latest, can be overridden with SMITE_VERSION env var)
+export SMITE_VERSION=${SMITE_VERSION:-latest}
 
-# Build with docker compose in parallel (will skip if prebuilt images exist)
-echo "  Building images..."
-if docker compose build --parallel 2>&1; then
-    progress "Docker images built"
+# Try to pull prebuilt images first (will fallback to build if not available)
+echo "  Pulling prebuilt images from GHCR..."
+if docker pull ghcr.io/zzedix/smite-panel:${SMITE_VERSION} 2>/dev/null; then
+    progress "Panel image pulled from GHCR"
 else
-    echo -e "${YELLOW}Build completed with warnings${NC}"
+    echo -e "${YELLOW}Prebuilt image not found, will build locally...${NC}"
+    echo "  Building images locally..."
+    if docker compose build --parallel 2>&1; then
+        progress "Docker images built locally"
+    else
+        echo -e "${YELLOW}Build completed with warnings${NC}"
+    fi
 fi
 
 # Start services
