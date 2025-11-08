@@ -77,7 +77,9 @@ RUN set -eux; \
             ls -R /opt/backhaul; \
             exit 1; \
         fi; \
-        mv "$BIN_PATH" /opt/backhaul/backhaul; \
+        if [ "$BIN_PATH" != "/opt/backhaul/backhaul" ]; then \
+            mv "$BIN_PATH" /opt/backhaul/backhaul; \
+        fi; \
     fi; \
     chmod +x /opt/backhaul/backhaul; \
     rm -f "$TMP_FILE" 2>/dev/null || true; \
