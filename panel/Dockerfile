@@ -95,7 +95,7 @@ RUN ARCH=$(uname -m) && \
 
 # Stage 3: Install backhaul (cached layer)
 FROM base AS backhaul-bin
-ARG BACKHAUL_MODULE=github.com/zZedix/backhaul
+ARG BACKHAUL_MODULE=github.com/Musixal/Backhaul
 ARG BACKHAUL_VERSION=latest
 ARG BACKHAUL_GIT_TOKEN=
 ENV GO111MODULE=on
