@@ -111,15 +111,13 @@ def add_tracking_rule(tunnel_id: str, port: int, is_ipv6: bool = False):
     """
     Add iptables rule to track traffic on a port
     The rule only COUNTS traffic, doesn't block or modify it
+    Tracks both INPUT (incoming) and OUTPUT (outgoing) traffic
     """
     ensure_chain_exists()
     
     rule_comment = f"smite-{tunnel_id}"
     cmd = is_ipv6 and _run_ip6tables or _run_iptables
     
-    # Add rule to track INPUT traffic (incoming to this port)
-    # -p tcp/udp -m tcp/udp --dport PORT -j ACCEPT with comment
-    # We use ACCEPT so traffic flows normally, just gets counted
     try:
         # Check if rule already exists
         result = cmd(["-L", CHAIN_NAME, "-n", "-v", "--line-numbers"], check=False)
@@ -127,25 +125,43 @@ def add_tracking_rule(tunnel_id: str, port: int, is_ipv6: bool = False):
             logger.debug(f"Tracking rule for tunnel {tunnel_id} port {port} already exists")
             return
         
-        # Add TCP rule
+        # Add TCP INPUT rule (traffic coming TO this port)
         cmd([
             "-A", CHAIN_NAME,
             "-p", "tcp",
             "--dport", str(port),
-            "-m", "comment", "--comment", rule_comment,
+            "-m", "comment", "--comment", f"{rule_comment}-tcp-in",
             "-j", "ACCEPT"
         ])
         
-        # Add UDP rule
+        # Add TCP OUTPUT rule (traffic going FROM this port)
+        cmd([
+            "-A", CHAIN_NAME,
+            "-p", "tcp",
+            "--sport", str(port),
+            "-m", "comment", "--comment", f"{rule_comment}-tcp-out",
+            "-j", "ACCEPT"
+        ])
+        
+        # Add UDP INPUT rule
         cmd([
             "-A", CHAIN_NAME,
             "-p", "udp",
             "--dport", str(port),
-            "-m", "comment", "--comment", rule_comment,
+            "-m", "comment", "--comment", f"{rule_comment}-udp-in",
             "-j", "ACCEPT"
         ])
         
-        logger.info(f"Added iptables tracking rule for tunnel {tunnel_id} on port {port} (IPv6={is_ipv6})")
+        # Add UDP OUTPUT rule
+        cmd([
+            "-A", CHAIN_NAME,
+            "-p", "udp",
+            "--sport", str(port),
+            "-m", "comment", "--comment", f"{rule_comment}-udp-out",
+            "-j", "ACCEPT"
+        ])
+        
+        logger.info(f"Added iptables tracking rules for tunnel {tunnel_id} on port {port} (IPv6={is_ipv6})")
     except subprocess.CalledProcessError as e:
         logger.warning(f"Failed to add tracking rule for tunnel {tunnel_id}: {e}")
 
@@ -183,6 +199,10 @@ def get_traffic_bytes(tunnel_id: str, port: int, is_ipv6: bool = False) -> int:
     """
     Get total bytes (sent + received) for a tunnel from iptables counters
     Returns bytes, or 0 if not found
+    
+    iptables -L -n -v -x output format:
+    pkts      bytes target     prot opt in     out     source               destination
+    12345  1234567 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0
     """
     rule_comment = f"smite-{tunnel_id}"
     cmd = is_ipv6 and _run_ip6tables or _run_iptables
@@ -191,15 +211,14 @@ def get_traffic_bytes(tunnel_id: str, port: int, is_ipv6: bool = False) -> int:
         result = cmd(["-L", CHAIN_NAME, "-n", "-v", "-x"], check=False)
         total_bytes = 0
         
-        # iptables output format:
-        # pkts bytes target prot opt in out source destination
-        # We need to sum bytes from all rules matching our comment
+        # Sum bytes from all rules matching our comment (both input and output)
         for line in result.stdout.split('\n'):
             if rule_comment in line:
-                # Extract bytes (second field)
+                # Extract bytes (second field in -x format)
                 parts = line.split()
                 if len(parts) >= 2:
                     try:
+                        # In -x format, bytes is the second field (after pkts)
                         bytes_val = int(parts[1])
                         total_bytes += bytes_val
                     except (ValueError, IndexError):
