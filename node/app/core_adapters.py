@@ -423,11 +423,15 @@ class ChiselAdapter:
             raise ValueError(f"Invalid local_addr format: {local_addr} (port required)")
         
         # Chisel reverse tunnel format: R:<reverse_port>:<local_host>:<local_port>
-        # Example: R:8080:127.0.0.1:8080
+        # Example: R:8080:127.0.0.1:8080 or R:8080:[::1]:8080 for IPv6
         # This means: forward connections to reverse_port on server to local_host:local_port on node
         # IMPORTANT: reverse_port should be different from the server control port in server_url
         # But if they're the same, Chisel should handle it (though it may cause conflicts)
-        reverse_spec = f"R:{reverse_port}:{host}:{port}"
+        # For IPv6 addresses, Chisel requires brackets around the host
+        if is_ipv6:
+            reverse_spec = f"R:{reverse_port}:[{host}]:{port}"
+        else:
+            reverse_spec = f"R:{reverse_port}:{host}:{port}"
         logger.info(f"Chisel tunnel {tunnel_id}: reverse_spec={reverse_spec}, server_url={server_url}")
         
         # Build chisel client command

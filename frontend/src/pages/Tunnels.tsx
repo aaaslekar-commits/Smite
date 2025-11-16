@@ -323,7 +323,10 @@ const Tunnels = () => {
                   <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                     <span className="text-sm text-gray-500 dark:text-gray-400">Local Port</span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {tunnel.spec?.local_addr ? tunnel.spec.local_addr.split(':')[1] : 'N/A'}
+                      {tunnel.spec?.local_addr ? (() => {
+                        const parsed = parseAddressPort(tunnel.spec.local_addr)
+                        return parsed.port?.toString() || 'N/A'
+                      })() : 'N/A'}
                     </span>
                   </div>
                 </>
@@ -339,7 +342,10 @@ const Tunnels = () => {
                   <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                     <span className="text-sm text-gray-500 dark:text-gray-400">Local Port</span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {tunnel.spec?.local_addr ? tunnel.spec.local_addr.split(':')[1] : 'N/A'}
+                      {tunnel.spec?.local_addr ? (() => {
+                        const parsed = parseAddressPort(tunnel.spec.local_addr)
+                        return parsed.port?.toString() || 'N/A'
+                      })() : 'N/A'}
                     </span>
                   </div>
                 </>
