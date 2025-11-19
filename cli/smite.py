@@ -84,11 +84,18 @@ def run_docker_compose(args, capture_output=False):
         print(f"Error: docker-compose.yml not found at {compose_file}")
         sys.exit(1)
     
-    cmd = ["docker", "compose", "-f", str(compose_file)] + args
-    result = subprocess.run(cmd, capture_output=capture_output, text=True)
-    if not capture_output and result.returncode != 0:
-        sys.exit(result.returncode)
-    return result
+    compose_dir = compose_file.parent
+    original_cwd = Path.cwd()
+    
+    try:
+        os.chdir(compose_dir)
+        cmd = ["docker", "compose", "-f", str(compose_file)] + args
+        result = subprocess.run(cmd, capture_output=capture_output, text=True, cwd=str(compose_dir))
+        if not capture_output and result.returncode != 0:
+            sys.exit(result.returncode)
+        return result
+    finally:
+        os.chdir(original_cwd)
 
 
 def cmd_admin_create(args):
