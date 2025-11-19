@@ -38,6 +38,8 @@ services:
       - ./nginx/entrypoint.sh:/docker-entrypoint.d/10-smitenginx.sh:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
+    env_file:
+      - .env
     environment:
       - SMITE_HTTP_PORT=${SMITE_HTTP_PORT:-80}
       - SMITE_HTTPS_PORT=${SMITE_HTTPS_PORT:-443}
