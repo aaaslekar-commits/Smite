@@ -86,6 +86,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 FROM base
 WORKDIR /app
 
+ARG SMITE_VERSION=latest
+LABEL org.opencontainers.image.version="${SMITE_VERSION}"
+LABEL smite.version="${SMITE_VERSION}"
+ENV SMITE_VERSION="${SMITE_VERSION}"
+
 # Copy binaries from binary stages
 COPY --from=rathole-bin /usr/local/bin/rathole /usr/local/bin/rathole
 COPY --from=rathole-bin /usr/local/bin/chisel /usr/local/bin/chisel

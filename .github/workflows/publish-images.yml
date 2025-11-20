@@ -64,6 +64,23 @@ jobs:
             echo "result=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -n "$LATEST_TAG" ]; then
+              VERSION="${LATEST_TAG#v}"
+              echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            else
+              echo "version=latest" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Extract metadata for panel image
         id: meta-panel
         uses: docker/metadata-action@v5
@@ -87,6 +104,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-panel.outputs.tags }}
           labels: ${{ steps.meta-panel.outputs.labels }}
+          build-args: |
+            SMITE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -113,6 +132,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-node.outputs.tags }}
           labels: ${{ steps.meta-node.outputs.labels }}
+          build-args: |
+            SMITE_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
