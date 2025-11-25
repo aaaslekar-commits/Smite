@@ -436,6 +436,10 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
       return parsed.port?.toString() || ''
     })() : '',
     chisel_control_port: tunnel.spec?.control_port ? tunnel.spec.control_port.toString() : '',
+    frp_bind_port: tunnel.spec?.bind_port ? tunnel.spec.bind_port.toString() : '7000',
+    frp_token: tunnel.spec?.token || '',
+    frp_local_ip: tunnel.spec?.local_ip || '127.0.0.1',
+    frp_local_port: tunnel.spec?.local_port ? tunnel.spec.local_port.toString() : '8080',
     node_ipv6: tunnel.spec?.node_ipv6 || '',
   })
   const parsedBackhaul = parseBackhaulSpec(tunnel.spec, tunnel.type)
@@ -496,6 +500,21 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
         if (formData.node_ipv6) {
           updatedSpec.node_ipv6 = formData.node_ipv6
         }
+      } else if (tunnel.core === 'frp') {
+        const bindPort = parseInt(formData.frp_bind_port) || 7000
+        const localPort = parseInt(formData.frp_local_port) || 8080
+        const remotePort = parseInt(formData.port.toString()) || localPort
+        updatedSpec.bind_port = bindPort
+        updatedSpec.listen_port = remotePort
+        updatedSpec.remote_port = remotePort
+        if (formData.frp_token) {
+          updatedSpec.token = formData.frp_token
+        } else {
+          delete updatedSpec.token
+        }
+        updatedSpec.local_ip = formData.frp_local_ip || '127.0.0.1'
+        updatedSpec.local_port = localPort
+        updatedSpec.type = tunnel.type === 'udp' ? 'udp' : 'tcp'
       } else if (tunnel.core === 'backhaul') {
         updatedSpec = buildBackhaulSpec(backhaulState, backhaulAdvanced, tunnel.type as BackhaulTransport)
       }
@@ -730,6 +749,104 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
             </>
           )}
           
+          {tunnel.core === 'frp' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Bind Port
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.frp_bind_port}
+                    onChange={(e) =>
+                      setFormData({ ...formData, frp_bind_port: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="7000"
+                    min="1"
+                    max="65535"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    FRP server port on panel (default: 7000)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Remote Port
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.port}
+                    onChange={(e) =>
+                      setFormData({ ...formData, port: parseInt(e.target.value) || 8080 })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="8080"
+                    min="1"
+                    max="65535"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Port where clients connect to access tunneled service
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Token (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.frp_token}
+                    onChange={(e) =>
+                      setFormData({ ...formData, frp_token: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="authentication-token"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Authentication token (optional)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Local IP
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.frp_local_ip}
+                    onChange={(e) =>
+                      setFormData({ ...formData, frp_local_ip: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="127.0.0.1"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Local service IP address</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Local Port
+                </label>
+                <input
+                  type="number"
+                  value={formData.frp_local_port}
+                  onChange={(e) =>
+                    setFormData({ ...formData, frp_local_port: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                  placeholder="8080"
+                  min="1"
+                  max="65535"
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Local service port ({formData.frp_local_ip || '127.0.0.1'}:{formData.frp_local_port || '8080'})</p>
+              </div>
+            </>
+          )}
+          
           {/* Node IPv6 address field for Rathole when v4 to v6 is enabled */}
           {tunnel.core === 'rathole' && tunnel.spec?.use_ipv6 && (
             <div>
@@ -796,6 +913,10 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
     rathole_token: '',
     rathole_local_port: '8080',
     chisel_control_port: '',  // Empty means auto (listen_port + 10000)
+    frp_bind_port: '7000',
+    frp_token: '',
+    frp_local_ip: '127.0.0.1',
+    frp_local_port: '8080',
     use_ipv6: false,
     node_ipv6: '',  // Optional IPv6 address for node (Rathole/Chisel)
     spec: {} as Record<string, any>,
@@ -864,6 +985,26 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
         tunnelType = backhaulState.transport
       }
       
+      if (formData.core === 'frp') {
+        if (!formData.node_id) {
+          alert('FRP tunnels require a node')
+          return
+        }
+        const bindPort = parseInt(formData.frp_bind_port) || 7000
+        const localPort = parseInt(formData.frp_local_port) || 8080
+        const remotePort = parseInt(formData.port.toString()) || localPort
+        spec.bind_port = bindPort
+        spec.listen_port = remotePort
+        spec.remote_port = remotePort
+        if (formData.frp_token) {
+          spec.token = formData.frp_token
+        }
+        spec.local_ip = formData.frp_local_ip || '127.0.0.1'
+        spec.local_port = localPort
+        spec.type = formData.type === 'udp' ? 'udp' : 'tcp'
+        tunnelType = formData.type === 'udp' ? 'udp' : 'tcp'
+      }
+      
       const payload = {
         name: formData.name,
         core: formData.core,
@@ -898,11 +1039,11 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
 
   const handleCoreChange = (core: string) => {
     let newType = formData.type
-    if (core === 'rathole' || core === 'chisel') {
-      newType = core
+    if (core === 'rathole' || core === 'chisel' || core === 'frp') {
+      newType = core === 'frp' ? 'tcp' : core
     } else if (core === 'backhaul') {
       newType = backhaulState.transport
-    } else if (formData.type === 'rathole' || formData.type === 'chisel' || formData.core === 'backhaul') {
+    } else if (formData.type === 'rathole' || formData.type === 'chisel' || formData.core === 'backhaul' || formData.core === 'frp') {
       newType = 'tcp'
     }
     setFormData({ ...formData, core, type: newType })
@@ -943,7 +1084,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                   value={formData.node_id}
                   onChange={(e) => setFormData({ ...formData, node_id: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                required={formData.core === 'rathole' || formData.core === 'backhaul'}
+                required={formData.core === 'rathole' || formData.core === 'backhaul' || formData.core === 'frp'}
                 >
                   <option value="">Select a node</option>
                   {nodes.map((node) => (
@@ -970,6 +1111,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                 <option value="rathole">Rathole</option>
                 <option value="backhaul">Backhaul</option>
                 <option value="chisel">Chisel</option>
+                <option value="frp">FRP</option>
               </select>
             </div>
             <div>
@@ -986,10 +1128,15 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                   }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                disabled={formData.core === 'rathole' || formData.core === 'chisel'}
+                disabled={formData.core === 'rathole' || formData.core === 'chisel' || formData.core === 'frp'}
               >
                 {formData.core === 'rathole' || formData.core === 'chisel' ? (
                   <option value={formData.core}>{formData.core.charAt(0).toUpperCase() + formData.core.slice(1)}</option>
+                ) : formData.core === 'frp' ? (
+                  <>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </>
                 ) : formData.core === 'backhaul' ? (
                   <>
                     <option value="tcp">TCP</option>
@@ -1214,8 +1361,106 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
             </>
           )}
           
+          {formData.core === 'frp' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Bind Port
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.frp_bind_port}
+                    onChange={(e) =>
+                      setFormData({ ...formData, frp_bind_port: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="7000"
+                    min="1"
+                    max="65535"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    FRP server port on panel (default: 7000)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Remote Port
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.port}
+                    onChange={(e) =>
+                      setFormData({ ...formData, port: parseInt(e.target.value) || 8080 })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="8080"
+                    min="1"
+                    max="65535"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Port where clients connect to access tunneled service
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Token (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.frp_token}
+                    onChange={(e) =>
+                      setFormData({ ...formData, frp_token: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="authentication-token"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Authentication token (optional)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Local IP
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.frp_local_ip}
+                    onChange={(e) =>
+                      setFormData({ ...formData, frp_local_ip: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    placeholder="127.0.0.1"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Local service IP address</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Local Port
+                </label>
+                <input
+                  type="number"
+                  value={formData.frp_local_port}
+                  onChange={(e) =>
+                    setFormData({ ...formData, frp_local_port: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                  placeholder="8080"
+                  min="1"
+                  max="65535"
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Local service port ({formData.frp_local_ip || '127.0.0.1'}:{formData.frp_local_port || '8080'})</p>
+              </div>
+            </>
+          )}
+          
           {/* v4 to v6 tunnel checkbox - only for Rathole, Backhaul, Chisel (not GOST) */}
-          {formData.core !== 'xray' && (
+          {formData.core !== 'xray' && formData.core !== 'frp' && (
             <>
               <div className="flex items-center gap-2">
                 <input
