@@ -70,7 +70,10 @@ async def get_core_health(request: Request, db: AsyncSession = Depends(get_db)):
                 if manager:
                     active_servers = manager.get_active_servers()
                     if len(active_tunnels) > 0:
-                        panel_healthy = len(active_servers) > 0
+                        # Check if each tunnel has a corresponding active server
+                        tunnel_ids = {t.id for t in active_tunnels}
+                        server_tunnel_ids = set(active_servers)
+                        panel_healthy = tunnel_ids.issubset(server_tunnel_ids) and len(active_servers) > 0
                         panel_status = "healthy" if panel_healthy else "error"
                     else:
                         panel_healthy = True  # No tunnels means healthy (nothing to check)
@@ -404,7 +407,8 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
                             "server_url": server_url,
                             "reverse_spec": reverse_spec,
                             "auth": auth,
-                            "fingerprint": fingerprint
+                            "fingerprint": fingerprint,
+                            "use_ipv6": use_ipv6
                         }
                     else:
                         logger.warning(f"Chisel tunnel {tunnel.id}: Missing listen_port, skipping reset")

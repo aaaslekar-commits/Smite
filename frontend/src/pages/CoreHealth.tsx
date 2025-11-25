@@ -144,7 +144,7 @@ const CoreHealth = () => {
                       {coreHealth.core}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {nodeCount} node(s), {healthyNodes} healthy
+                      {nodeCount} node(s)
                     </p>
                   </div>
                 </div>
@@ -182,7 +182,7 @@ const CoreHealth = () => {
                         <div className="flex items-center gap-2">
                           {getStatusIcon(nodeStatus.healthy, nodeStatus.status)}
                           <span className="text-gray-600 dark:text-gray-400">
-                            {nodeStatus.active_tunnels} tunnel(s)
+                            {getStatusText(nodeStatus.healthy, nodeStatus.status)}
                           </span>
                         </div>
                       </div>
