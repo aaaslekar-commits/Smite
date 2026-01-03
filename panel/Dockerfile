@@ -3,7 +3,33 @@ RUN apt-get update && apt-get install -y \
     gcc \
     ca-certificates \
     git \
+    curl \
+    unzip \
+    gzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Stage: Install FRP binaries
+FROM base AS frp-bin
+RUN set -eux; \
+    ARCH_RAW="$(uname -m)"; \
+    case "$ARCH_RAW" in \
+        x86_64) ARCH="amd64" ;; \
+        aarch64) ARCH="arm64" ;; \
+        *) ARCH="amd64" ;; \
+    esac; \
+    echo "Fetching FRP release"; \
+    FRP_VERSION="v0.65.0"; \
+    FRP_VERSION_NO_V="${FRP_VERSION#v}"; \
+    FRP_URL="https://github.com/fatedier/frp/releases/download/${FRP_VERSION}/frp_${FRP_VERSION_NO_V}_linux_${ARCH}.tar.gz"; \
+    FRP_TMP="$(mktemp -d)"; \
+    curl -fsSL "$FRP_URL" -o "$FRP_TMP/frp.tar.gz"; \
+    tar -xzf "$FRP_TMP/frp.tar.gz" -C "$FRP_TMP"; \
+    FRPS_BIN="$(find "$FRP_TMP" -type f -name 'frps' | head -n1)"; \
+    if [ -n "$FRPS_BIN" ]; then \
+        install -Dm755 "$FRPS_BIN" /usr/local/bin/frps; \
+    fi; \
+    rm -rf "$FRP_TMP"; \
+    /usr/local/bin/frps --version || true
 
 FROM node:18-alpine AS frontend-build
 WORKDIR /app
@@ -31,6 +57,9 @@ LABEL org.opencontainers.image.version="${SMITE_VERSION}"
 LABEL smite.version="${SMITE_VERSION}"
 ENV SMITE_VERSION="${SMITE_VERSION}"
 RUN echo "${SMITE_VERSION}" > /app/VERSION
+
+# Copy FRP binary from frp-bin stage
+COPY --from=frp-bin /usr/local/bin/frps /usr/local/bin/frps
 
 COPY --from=deps /usr/local /usr/local
 COPY --from=frontend-build /app/dist ./static

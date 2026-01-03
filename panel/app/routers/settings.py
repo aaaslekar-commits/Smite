@@ -92,8 +92,11 @@ async def update_settings(settings_update: SettingsUpdate, request: Request, db:
         
         if new_enabled and not old_enabled:
             try:
-                frp_comm_manager.start(settings_update.frp.port, settings_update.frp.token)
-                logger.info(f"FRP communication server started on port {settings_update.frp.port}")
+                success = frp_comm_manager.start(settings_update.frp.port, settings_update.frp.token)
+                if success:
+                    logger.info(f"FRP communication server started on port {settings_update.frp.port}")
+                else:
+                    logger.warning(f"FRP communication server failed to start (binary may not be available)")
             except Exception as e:
                 logger.error(f"Failed to start FRP communication server: {e}", exc_info=True)
         elif not new_enabled and old_enabled:

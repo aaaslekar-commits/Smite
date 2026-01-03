@@ -57,7 +57,6 @@ class FrpCommManager:
         try:
             self.port = port
             self.token = token
-            self.enabled = True
             
             config_content = f"""bindPort: {port}
 """
@@ -70,7 +69,13 @@ class FrpCommManager:
             with open(self.config_file, 'w') as f:
                 f.write(config_content)
             
-            binary_path = self._resolve_binary_path()
+            try:
+                binary_path = self._resolve_binary_path()
+            except FileNotFoundError as e:
+                logger.warning(f"FRP binary not found: {e}. FRP communication will not be available.")
+                self.enabled = False
+                return False
+            
             cmd = [str(binary_path), "-c", str(self.config_file)]
             
             log_f = open(self.log_file, 'w', buffering=1)
@@ -97,15 +102,16 @@ class FrpCommManager:
                 error_msg = f"FRP communication server failed to start: {error_output[-500:] if len(error_output) > 500 else error_output}"
                 logger.error(error_msg)
                 self.enabled = False
-                raise RuntimeError(error_msg)
+                return False
             
+            self.enabled = True
             logger.info(f"FRP communication server started on port {port} (PID: {self.process.pid})")
             return True
             
         except Exception as e:
             logger.error(f"Failed to start FRP communication server: {e}")
             self.enabled = False
-            raise
+            return False
     
     def stop(self):
         """Stop FRP communication server"""

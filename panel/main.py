@@ -678,8 +678,11 @@ async def _load_and_start_frp_comm():
             if setting and setting.value and setting.value.get("enabled"):
                 port = setting.value.get("port", 7000)
                 token = setting.value.get("token")
-                frp_comm_manager.start(port, token)
-                logger.info(f"FRP communication server started on port {port}")
+                success = frp_comm_manager.start(port, token)
+                if success:
+                    logger.info(f"FRP communication server started on port {port}")
+                else:
+                    logger.warning(f"FRP communication server failed to start (binary may not be available)")
             else:
                 logger.info("FRP communication is disabled")
     except Exception as e:

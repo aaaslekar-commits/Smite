@@ -31,6 +31,10 @@ class TelegramBot:
         self.enabled = False
         self.bot_token: Optional[str] = None
         self.admin_ids: List[str] = []
+        self.backup_task: Optional[asyncio.Task] = None
+        self.backup_enabled = False
+        self.backup_interval = 60
+        self.backup_interval_unit = "minutes"
     
     async def load_settings(self):
         """Load settings from database"""
@@ -68,6 +72,9 @@ class TelegramBot:
             logger.info("Telegram bot not enabled or token not set")
             return False
         
+        # Stop existing instance if running
+        await self.stop()
+        
         try:
             self.application = Application.builder().token(self.bot_token).build()
             
@@ -81,7 +88,9 @@ class TelegramBot:
             
             await self.application.initialize()
             await self.application.start()
-            await self.application.updater.start_polling()
+            
+            # Use drop_pending_updates to avoid conflicts
+            await self.application.updater.start_polling(drop_pending_updates=True)
             
             await self.start_backup_task()
             
@@ -89,6 +98,8 @@ class TelegramBot:
             return True
         except Exception as e:
             logger.error(f"Failed to start Telegram bot: {e}", exc_info=True)
+            # Clean up on failure
+            await self.stop()
             return False
     
     async def stop(self):
@@ -97,13 +108,15 @@ class TelegramBot:
         
         if self.application:
             try:
-                await self.application.updater.stop()
+                if self.application.updater and self.application.updater.running:
+                    await self.application.updater.stop()
                 await self.application.stop()
                 await self.application.shutdown()
             except Exception as e:
-                logger.error(f"Error stopping Telegram bot: {e}")
+                logger.warning(f"Error stopping Telegram bot: {e}")
             finally:
                 self.application = None
+                logger.info("Telegram bot stopped")
     
     async def start_backup_task(self):
         """Start automatic backup task"""
@@ -289,7 +302,19 @@ Use buttons in messages to interact with nodes and tunnels."""
 🔗 Tunnels: {active_tunnels}/{len(tunnels)} active
 """
             
-            await update.message.reply_text(text)
+            keyboard = [
+                [
+                    InlineKeyboardButton("🖥️ View Nodes", callback_data="cmd_nodes"),
+                    InlineKeyboardButton("🔗 View Tunnels", callback_data="cmd_tunnels")
+                ],
+                [
+                    InlineKeyboardButton("📦 Create Backup", callback_data="cmd_backup"),
+                    InlineKeyboardButton("🔄 Refresh", callback_data="cmd_status")
+                ]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(text, reply_markup=reply_markup)
     
     async def cmd_backup(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /backup command"""
@@ -409,6 +434,14 @@ Use buttons in messages to interact with nodes and tunnels."""
         elif data.startswith("tunnel_info_"):
             tunnel_id = data.replace("tunnel_info_", "")
             await self.show_tunnel_info(query, tunnel_id)
+        elif data == "cmd_nodes":
+            await self.cmd_nodes_callback(query)
+        elif data == "cmd_tunnels":
+            await self.cmd_tunnels_callback(query)
+        elif data == "cmd_backup":
+            await self.cmd_backup_callback(query)
+        elif data == "cmd_status":
+            await self.cmd_status_callback(query)
     
     async def show_node_info(self, query, node_id: str):
         """Show node information"""
@@ -431,7 +464,12 @@ Use buttons in messages to interact with nodes and tunnels."""
 📊 Status: {node.status}
 """
             
-            await query.edit_message_text(text)
+            keyboard = [
+                [InlineKeyboardButton("🔙 Back to Nodes", callback_data="cmd_nodes")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(text, reply_markup=reply_markup)
     
     async def show_tunnel_info(self, query, tunnel_id: str):
         """Show tunnel information"""
@@ -450,7 +488,126 @@ Use buttons in messages to interact with nodes and tunnels."""
 📊 Status: {tunnel.status}
 """
             
-            await query.edit_message_text(text)
+            keyboard = [
+                [InlineKeyboardButton("🔙 Back to Tunnels", callback_data="cmd_tunnels")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(text, reply_markup=reply_markup)
+    
+    async def cmd_nodes_callback(self, query):
+        """Handle nodes command from callback"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(Node))
+            nodes = result.scalars().all()
+            
+            if not nodes:
+                await query.edit_message_text("📭 No nodes found.")
+                return
+            
+            text = "🖥️ Nodes:\n\n"
+            for node in nodes:
+                status = "🟢" if node.status == "active" else "🔴"
+                role = node.node_metadata.get("role", "unknown") if node.node_metadata else "unknown"
+                text += f"{status} {node.name} ({role})\n"
+                text += f"   ID: {node.id[:8]}...\n\n"
+            
+            keyboard = []
+            for node in nodes:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"📊 {node.name}",
+                        callback_data=f"node_info_{node.id}"
+                    )
+                ])
+            keyboard.append([InlineKeyboardButton("🔙 Back to Status", callback_data="cmd_status")])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(text, reply_markup=reply_markup)
+    
+    async def cmd_tunnels_callback(self, query):
+        """Handle tunnels command from callback"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(Tunnel))
+            tunnels = result.scalars().all()
+            
+            if not tunnels:
+                await query.edit_message_text("📭 No tunnels found.")
+                return
+            
+            text = f"🔗 Tunnels ({len(tunnels)}):\n\n"
+            for tunnel in tunnels[:10]:
+                status = "🟢" if tunnel.status == "active" else "🔴"
+                text += f"{status} {tunnel.name} ({tunnel.core})\n"
+            
+            if len(tunnels) > 10:
+                text += f"\n... and {len(tunnels) - 10} more"
+            
+            keyboard = []
+            for tunnel in tunnels[:5]:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"🔗 {tunnel.name}",
+                        callback_data=f"tunnel_info_{tunnel.id}"
+                    )
+                ])
+            keyboard.append([InlineKeyboardButton("🔙 Back to Status", callback_data="cmd_status")])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+            await query.edit_message_text(text, reply_markup=reply_markup)
+    
+    async def cmd_backup_callback(self, query):
+        """Handle backup command from callback"""
+        await query.edit_message_text("📦 Creating backup...")
+        
+        try:
+            backup_path = await self.create_backup()
+            if backup_path:
+                with open(backup_path, 'rb') as f:
+                    await query.message.reply_document(
+                        document=f,
+                        filename=f"smite_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                        caption="✅ Backup created successfully"
+                    )
+                os.remove(backup_path)
+                await query.edit_message_text("✅ Backup created and sent successfully!")
+            else:
+                await query.edit_message_text("❌ Failed to create backup")
+        except Exception as e:
+            logger.error(f"Error creating backup: {e}", exc_info=True)
+            await query.edit_message_text(f"❌ Error creating backup: {str(e)}")
+    
+    async def cmd_status_callback(self, query):
+        """Handle status command from callback"""
+        async with AsyncSessionLocal() as session:
+            nodes_result = await session.execute(select(Node))
+            nodes = nodes_result.scalars().all()
+            
+            tunnels_result = await session.execute(select(Tunnel))
+            tunnels = tunnels_result.scalars().all()
+            
+            active_nodes = sum(1 for n in nodes if n.status == "active")
+            active_tunnels = sum(1 for t in tunnels if t.status == "active")
+            
+            text = f"""📊 Panel Status:
+
+🖥️ Nodes: {active_nodes}/{len(nodes)} active
+🔗 Tunnels: {active_tunnels}/{len(tunnels)} active
+"""
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("🖥️ View Nodes", callback_data="cmd_nodes"),
+                    InlineKeyboardButton("🔗 View Tunnels", callback_data="cmd_tunnels")
+                ],
+                [
+                    InlineKeyboardButton("📦 Create Backup", callback_data="cmd_backup"),
+                    InlineKeyboardButton("🔄 Refresh", callback_data="cmd_status")
+                ]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 telegram_bot = TelegramBot()
