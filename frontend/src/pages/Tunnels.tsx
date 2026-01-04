@@ -443,7 +443,26 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
   const parsePortsFromSpec = (spec: Record<string, any>): string => {
     if (spec?.ports) {
       if (Array.isArray(spec.ports)) {
-        return spec.ports.map(p => typeof p === 'object' && p.local ? p.local : p).join(',')
+        // For Backhaul, ports are in format "8080=127.0.0.1:8080" or "0.0.0.0:8080=127.0.0.1:8080"
+        // Extract just the port number (first number before = or after :)
+        return spec.ports.map(p => {
+          if (typeof p === 'object' && p.local) {
+            return p.local.toString()
+          } else if (typeof p === 'string') {
+            // Handle Backhaul format: "8080=127.0.0.1:8080" or "0.0.0.0:8080=127.0.0.1:8080"
+            if (p.includes('=')) {
+              const leftPart = p.split('=')[0]
+              // Extract port from left part (could be "8080" or "0.0.0.0:8080")
+              if (leftPart.includes(':')) {
+                return leftPart.split(':')[1]
+              }
+              return leftPart
+            }
+            // If it's just a number, return as-is
+            return p
+          }
+          return p.toString()
+        }).join(',')
       } else if (typeof spec.ports === 'string') {
         return spec.ports
       }

@@ -259,6 +259,10 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
             server_spec = db_tunnel.spec.copy() if db_tunnel.spec else {}
             server_spec["mode"] = "server"
             
+            # Ensure ports array is preserved in server_spec if it exists in db_tunnel.spec
+            if "ports" in db_tunnel.spec and "ports" not in server_spec:
+                server_spec["ports"] = db_tunnel.spec.get("ports", [])
+            
             client_spec = db_tunnel.spec.copy() if db_tunnel.spec else {}
             client_spec["mode"] = "client"
             
@@ -413,9 +417,13 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 token = server_spec.get("token")
                 
                 # Handle multiple ports - Backhaul already has ports array in spec from frontend
-                # Get ports from the original tunnel.spec first, then fallback to server_spec
-                ports = db_tunnel.spec.get("ports") or server_spec.get("ports", [])
-                logger.info(f"Backhaul tunnel {db_tunnel.id}: received ports from db_tunnel.spec: {db_tunnel.spec.get('ports')}, from server_spec: {server_spec.get('ports')}, final: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
+                # IMPORTANT: Read ports from server_spec first (which comes from db_tunnel.spec.copy())
+                # This ensures we get the ports that were sent from frontend and stored in database
+                ports = server_spec.get("ports", [])
+                if not ports:
+                    # Fallback to db_tunnel.spec if server_spec doesn't have ports
+                    ports = db_tunnel.spec.get("ports", [])
+                logger.info(f"Backhaul tunnel {db_tunnel.id}: received ports from server_spec: {server_spec.get('ports')}, from db_tunnel.spec: {db_tunnel.spec.get('ports')}, final: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
                 
                 if not ports or (isinstance(ports, list) and len(ports) == 0):
                     # Fallback to single port for backward compatibility
@@ -1369,9 +1377,15 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                     server_spec["listen_port"] = public_port
                     
                     # Handle multiple ports - preserve the ports array from spec
-                    # Get ports from the original tunnel.spec first, then fallback to server_spec
-                    ports = tunnel.spec.get("ports") or server_spec.get("ports", [])
-                    logger.info(f"Backhaul tunnel update {tunnel.id}: received ports from tunnel.spec: {tunnel.spec.get('ports')}, from server_spec: {server_spec.get('ports')}, final: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
+                    # IMPORTANT: Read ports from spec (which is tunnel.spec.copy()) first
+                    ports = spec.get("ports", [])
+                    if not ports:
+                        # Fallback to tunnel.spec if spec doesn't have ports
+                        ports = tunnel.spec.get("ports", [])
+                    # Ensure ports are in server_spec
+                    if ports:
+                        server_spec["ports"] = ports
+                    logger.info(f"Backhaul tunnel update {tunnel.id}: received ports from spec: {spec.get('ports')}, from tunnel.spec: {tunnel.spec.get('ports')}, final: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
                     
                     if not ports or (isinstance(ports, list) and len(ports) == 0):
                         # Fallback to single port for backward compatibility
