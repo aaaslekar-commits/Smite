@@ -216,24 +216,29 @@ class TelegramBot:
         try:
             self.application = Application.builder().token(self.bot_token).build()
             
-            def add_node_filter(update: Update) -> bool:
+            class AddNodeFilter(filters.BaseFilter):
                 """Filter for add node entry point from keyboard"""
-                if update.callback_query and update.callback_query.data and update.callback_query.data.startswith("add_node_"):
-                    return True
-                if update.message and update.message.text:
-                    text = update.message.text
-                    user_id = update.effective_user.id
+                def __init__(self, bot_instance):
+                    super().__init__()
+                    self.bot = bot_instance
+                
+                def filter(self, message):
+                    if not message or not message.text:
+                        return False
+                    text = message.text
+                    user_id = message.from_user.id if message.from_user else 0
                     try:
-                        return (self.t(user_id, "add_iran_node") in text or 
-                               self.t(user_id, "add_foreign_node") in text)
+                        return (self.bot.t(user_id, "add_iran_node") in text or 
+                               self.bot.t(user_id, "add_foreign_node") in text)
                     except:
                         return "Add Iran Node" in text or "Add Foreign Node" in text or "افزودن نود" in text
-                return False
+            
+            add_node_filter = AddNodeFilter(self)
             
             add_node_conv = ConversationHandler(
                 entry_points=[
                     CallbackQueryHandler(self.add_node_start, pattern="^add_node_"),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND & filters.create(add_node_filter), self.add_node_start)
+                    MessageHandler(filters.TEXT & ~filters.COMMAND & add_node_filter, self.add_node_start)
                 ],
                 states={
                     WAITING_FOR_NODE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_node_name)],
