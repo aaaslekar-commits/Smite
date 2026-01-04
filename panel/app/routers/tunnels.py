@@ -409,6 +409,8 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 
                 # Handle multiple ports - Backhaul already has ports array in spec from frontend
                 ports = server_spec.get("ports", [])
+                logger.info(f"Backhaul tunnel {db_tunnel.id}: received ports from spec: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
+                
                 if not ports or (isinstance(ports, list) and len(ports) == 0):
                     # Fallback to single port for backward compatibility
                     public_port = server_spec.get("public_port") or server_spec.get("remote_port") or server_spec.get("listen_port")
@@ -427,19 +429,38 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 else:
                     # Ensure ports are in the correct format (list of strings like "8080=127.0.0.1:8080")
                     if isinstance(ports, list) and ports:
-                        # Check if ports need conversion (if they're numbers or simple strings without =)
-                        first_port = ports[0]
-                        needs_conversion = False
-                        if isinstance(first_port, int):
-                            needs_conversion = True
-                        elif isinstance(first_port, str):
-                            # If it's a string but doesn't contain '=', it's just a port number
-                            if '=' not in first_port and first_port.isdigit():
-                                needs_conversion = True
-                        
-                        if needs_conversion:
-                            # Convert list of numbers to proper format
-                            ports = [f"{p}={target_host}:{p}" for p in ports]
+                        # Process each port individually to handle different formats
+                        processed_ports = []
+                        for p in ports:
+                            if not p:
+                                continue
+                            if isinstance(p, str):
+                                # Already a string - check if it needs conversion
+                                if '=' in p:
+                                    # Already in correct format "port=host:port"
+                                    processed_ports.append(p)
+                                elif p.isdigit():
+                                    # Just a port number - convert to format
+                                    processed_ports.append(f"{p}={target_host}:{p}")
+                                else:
+                                    # Some other string format - use as-is
+                                    processed_ports.append(p)
+                            elif isinstance(p, int):
+                                # Number - convert to proper format
+                                processed_ports.append(f"{p}={target_host}:{p}")
+                            elif isinstance(p, dict):
+                                # Dictionary format - extract and convert
+                                local = p.get("local") or p.get("listen_port") or p.get("public_port")
+                                tgt_host = p.get("target_host") or target_host
+                                tgt_port = p.get("target_port") or p.get("remote_port") or local
+                                if local:
+                                    processed_ports.append(f"{local}={tgt_host}:{tgt_port}")
+                            else:
+                                # Fallback: convert to string
+                                processed_ports.append(str(p))
+                        ports = processed_ports
+                
+                logger.info(f"Backhaul tunnel {db_tunnel.id}: processed ports: {ports} (count: {len(ports)})")
                 
                 bind_ip = server_spec.get("bind_ip") or server_spec.get("listen_ip") or "0.0.0.0"
                 server_spec["bind_addr"] = f"{bind_ip}:{control_port}"
@@ -1312,6 +1333,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                     transport = spec.get("transport", "tcp")
                     control_port = spec.get("control_port") or spec.get("public_port") or spec.get("listen_port") or 3080
                     public_port = spec.get("public_port") or spec.get("listen_port") or control_port
+                    target_host = spec.get("target_host", "127.0.0.1")
                     token = spec.get("token")
                     
                     server_spec = spec.copy()
@@ -1319,8 +1341,56 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                     server_spec["control_port"] = control_port
                     server_spec["public_port"] = public_port
                     server_spec["listen_port"] = public_port
-                    if "ports" in server_spec and isinstance(server_spec["ports"], list) and len(server_spec["ports"]) > 0:
-                        server_spec["ports"] = [str(public_port)]
+                    
+                    # Handle multiple ports - preserve the ports array from spec
+                    ports = server_spec.get("ports", [])
+                    logger.info(f"Backhaul tunnel update {tunnel.id}: received ports from spec: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
+                    
+                    if not ports or (isinstance(ports, list) and len(ports) == 0):
+                        # Fallback to single port for backward compatibility
+                        target_port = spec.get("target_port") or public_port
+                        if target_port:
+                            target_addr = f"{target_host}:{target_port}"
+                            ports = [f"{public_port}={target_addr}"]
+                        else:
+                            ports = [str(public_port)]
+                    else:
+                        # Ensure ports are in the correct format (list of strings like "8080=127.0.0.1:8080")
+                        if isinstance(ports, list) and ports:
+                            # Process each port individually to handle different formats
+                            processed_ports = []
+                            for p in ports:
+                                if not p:
+                                    continue
+                                if isinstance(p, str):
+                                    # Already a string - check if it needs conversion
+                                    if '=' in p:
+                                        # Already in correct format "port=host:port"
+                                        processed_ports.append(p)
+                                    elif p.isdigit():
+                                        # Just a port number - convert to format
+                                        processed_ports.append(f"{p}={target_host}:{p}")
+                                    else:
+                                        # Some other string format - use as-is
+                                        processed_ports.append(p)
+                                elif isinstance(p, int):
+                                    # Number - convert to proper format
+                                    processed_ports.append(f"{p}={target_host}:{p}")
+                                elif isinstance(p, dict):
+                                    # Dictionary format - extract and convert
+                                    local = p.get("local") or p.get("listen_port") or p.get("public_port")
+                                    tgt_host = p.get("target_host") or target_host
+                                    tgt_port = p.get("target_port") or p.get("remote_port") or local
+                                    if local:
+                                        processed_ports.append(f"{local}={tgt_host}:{tgt_port}")
+                                else:
+                                    # Fallback: convert to string
+                                    processed_ports.append(str(p))
+                            ports = processed_ports
+                    
+                    logger.info(f"Backhaul tunnel update {tunnel.id}: processed ports: {ports} (count: {len(ports)})")
+                    server_spec["ports"] = ports
+                    
                     if token:
                         server_spec["token"] = token
                     

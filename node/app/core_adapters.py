@@ -336,6 +336,8 @@ class BackhaulAdapter:
                 bind_addr = f"{bind_ip}:{control_port}"
             
             ports = spec.get("ports")
+            logger.info(f"Backhaul {mode} tunnel {tunnel_id}: received ports from spec: {ports} (type: {type(ports)})")
+            
             if not ports or (isinstance(ports, list) and len(ports) == 0):
                 listen_port = spec.get("public_port") or spec.get("listen_port")
                 target_addr = spec.get("target_addr")
@@ -353,9 +355,32 @@ class BackhaulAdapter:
             
             # Ensure ports is a list of strings
             if isinstance(ports, list):
-                ports = [str(p) for p in ports if p]
+                # Handle different port formats
+                processed_ports = []
+                for p in ports:
+                    if not p:
+                        continue
+                    if isinstance(p, str):
+                        # Already a string, use as-is
+                        processed_ports.append(p)
+                    elif isinstance(p, (int, float)):
+                        # Number - convert to string
+                        processed_ports.append(str(p))
+                    elif isinstance(p, dict):
+                        # Dictionary format - convert to "port=host:port" format
+                        local = p.get("local") or p.get("listen_port") or p.get("public_port")
+                        target_host = p.get("target_host") or spec.get("target_host", "127.0.0.1")
+                        target_port = p.get("target_port") or p.get("remote_port") or local
+                        if local:
+                            processed_ports.append(f"{local}={target_host}:{target_port}")
+                    else:
+                        # Fallback: convert to string
+                        processed_ports.append(str(p))
+                ports = processed_ports
             else:
                 ports = [str(ports)] if ports else []
+            
+            logger.info(f"Backhaul {mode} tunnel {tunnel_id}: processed ports: {ports} (count: {len(ports)})")
             
             server_config: Dict[str, Any] = {
                 "bind_addr": bind_addr,
