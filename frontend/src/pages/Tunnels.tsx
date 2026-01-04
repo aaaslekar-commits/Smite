@@ -363,24 +363,14 @@ const Tunnels = () => {
                   </span>
 
                   <div className="flex-1 min-w-0">
-                    {/* Core Badge and Name */}
-                    <div className="flex items-center gap-3 mb-2">
+                    {/* Name, Core Badge, Transmission Badge, and Ports in one line */}
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">{tunnel.name}</h3>
                       <span
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border ${coreBadge.bg} ${coreBadge.text} ${coreBadge.border} shrink-0`}
                       >
                         {tunnel.core}
                       </span>
-                      <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">{tunnel.name}</h3>
-                    </div>
-
-                    {/* Ports */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Ports:</span>
-                      <span className="text-sm font-mono font-semibold text-gray-700 dark:text-gray-300">{ports}</span>
-                    </div>
-
-                    {/* Transmission Type and Core Port */}
-                    <div className="flex items-center gap-3 mb-2">
                       {(() => {
                         let transmissionType = null
                         if (tunnel.core === 'chisel') {
@@ -415,6 +405,14 @@ const Tunnels = () => {
                           </span>
                         )
                       })()}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Ports:</span>
+                        <span className="text-sm font-mono font-semibold text-gray-700 dark:text-gray-300">{ports}</span>
+                      </div>
+                    </div>
+
+                    {/* Core Port, Node and Server Info */}
+                    <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                       {(() => {
                         let corePort = null
                         if (tunnel.core === 'rathole') {
@@ -439,13 +437,12 @@ const Tunnels = () => {
                           corePort = tunnel.spec?.bind_port || '7000'
                         }
                         return corePort ? (
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-1.5">
                             <span className="font-medium">Core Port:</span>
                             <span className="text-gray-700 dark:text-gray-300 font-mono">{corePort}</span>
                           </div>
                         ) : null
                       })()}
-                    </div>
 
                     {/* Node and Server Info */}
                     <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
