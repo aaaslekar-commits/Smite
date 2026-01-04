@@ -16,14 +16,26 @@ import httpx
 logger = logging.getLogger(__name__)
 
 try:
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-    from telegram.ext import (
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton  # type: ignore
+    from telegram.ext import (  # type: ignore
         Application, CommandHandler, CallbackQueryHandler, ContextTypes,
         ConversationHandler, MessageHandler, filters
     )
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
+    Update = None  # type: ignore
+    InlineKeyboardButton = None  # type: ignore
+    InlineKeyboardMarkup = None  # type: ignore
+    ReplyKeyboardMarkup = None  # type: ignore
+    KeyboardButton = None  # type: ignore
+    Application = None  # type: ignore
+    CommandHandler = None  # type: ignore
+    CallbackQueryHandler = None  # type: ignore
+    ContextTypes = None  # type: ignore
+    ConversationHandler = None  # type: ignore
+    MessageHandler = None  # type: ignore
+    filters = None  # type: ignore
     logger.warning("python-telegram-bot not installed. Telegram bot will not work.")
 
 
@@ -204,8 +216,25 @@ class TelegramBot:
         try:
             self.application = Application.builder().token(self.bot_token).build()
             
+            def add_node_filter(update: Update) -> bool:
+                """Filter for add node entry point from keyboard"""
+                if update.callback_query and update.callback_query.data and update.callback_query.data.startswith("add_node_"):
+                    return True
+                if update.message and update.message.text:
+                    text = update.message.text
+                    user_id = update.effective_user.id
+                    try:
+                        return (self.t(user_id, "add_iran_node") in text or 
+                               self.t(user_id, "add_foreign_node") in text)
+                    except:
+                        return "Add Iran Node" in text or "Add Foreign Node" in text or "افزودن نود" in text
+                return False
+            
             add_node_conv = ConversationHandler(
-                entry_points=[CallbackQueryHandler(self.add_node_start, pattern="^add_node_")],
+                entry_points=[
+                    CallbackQueryHandler(self.add_node_start, pattern="^add_node_"),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND & filters.create(add_node_filter), self.add_node_start)
+                ],
                 states={
                     WAITING_FOR_NODE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_node_name)],
                     WAITING_FOR_NODE_IP: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_node_ip)],
@@ -385,27 +414,27 @@ class TelegramBot:
         """Get persistent keyboard markup"""
         keyboard = [
             [
-                KeyboardButton(f"📊 {self.t(user_id, 'node_stats')}"),
-                KeyboardButton(f"📊 {self.t(user_id, 'tunnel_stats')}")
+                KeyboardButton(self.t(user_id, 'node_stats')),
+                KeyboardButton(self.t(user_id, 'tunnel_stats'))
             ],
             [
-                KeyboardButton(f"➕ {self.t(user_id, 'add_iran_node')}"),
-                KeyboardButton(f"➕ {self.t(user_id, 'add_foreign_node')}")
+                KeyboardButton(self.t(user_id, 'add_iran_node')),
+                KeyboardButton(self.t(user_id, 'add_foreign_node'))
             ],
             [
-                KeyboardButton(f"➖ {self.t(user_id, 'remove_iran_node')}"),
-                KeyboardButton(f"➖ {self.t(user_id, 'remove_foreign_node')}")
+                KeyboardButton(self.t(user_id, 'remove_iran_node')),
+                KeyboardButton(self.t(user_id, 'remove_foreign_node'))
             ],
             [
-                KeyboardButton(f"🔗 {self.t(user_id, 'create_tunnel')}"),
-                KeyboardButton(f"🗑️ {self.t(user_id, 'remove_tunnel')}")
+                KeyboardButton(self.t(user_id, 'create_tunnel')),
+                KeyboardButton(self.t(user_id, 'remove_tunnel'))
             ],
             [
-                KeyboardButton(f"📋 {self.t(user_id, 'logs')}"),
-                KeyboardButton(f"📦 {self.t(user_id, 'backup')}")
+                KeyboardButton(self.t(user_id, 'logs')),
+                KeyboardButton(self.t(user_id, 'backup'))
             ],
             [
-                KeyboardButton(f"🌐 {self.t(user_id, 'language')}")
+                KeyboardButton(self.t(user_id, 'language'))
             ],
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
@@ -479,27 +508,42 @@ Use buttons in messages to interact with nodes and tunnels."""
                 # Text message from keyboard
                 text = update.message.text
                 user_id = update.effective_user.id
-                if "ایران" in text or "iran" in text.lower():
+                if "ایران" in text or "iran" in text.lower() or self.t(user_id, "add_iran_node") in text:
                     role = "iran"
                 else:
                     role = "foreign"
                 message = update.message
             
             if not self.is_admin(user_id):
-                await message.reply_text(self.t(user_id, "access_denied"))
+                reply_markup = self._get_keyboard(user_id)
+                if hasattr(message, 'edit_message_text'):
+                    await message.edit_message_text(self.t(user_id, "access_denied"), reply_markup=reply_markup)
+                else:
+                    await message.reply_text(self.t(user_id, "access_denied"), reply_markup=reply_markup)
                 return ConversationHandler.END
             
             self.user_states[user_id] = {"role": role, "step": "name"}
             
             cancel_btn = InlineKeyboardButton(self.t(user_id, "cancel"), callback_data="cancel")
             reply_markup = InlineKeyboardMarkup([[cancel_btn]])
+            persistent_keyboard = self._get_keyboard(user_id)
             if hasattr(message, 'edit_message_text'):
                 await message.edit_message_text(self.t(user_id, "enter_node_name"), reply_markup=reply_markup)
             else:
                 await message.reply_text(self.t(user_id, "enter_node_name"), reply_markup=reply_markup)
+                # Keep persistent keyboard visible
+                await asyncio.sleep(0.1)
+                await message.reply_text("⬇️", reply_markup=persistent_keyboard)
             return WAITING_FOR_NODE_NAME
         except Exception as e:
             logger.error(f"Error in add_node_start: {e}", exc_info=True)
+            try:
+                user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id if hasattr(update, 'from_user') else 0
+                reply_markup = self._get_keyboard(user_id)
+                if hasattr(update, 'message') and update.message:
+                    await update.message.reply_text("❌ Error starting node creation", reply_markup=reply_markup)
+            except:
+                pass
             return ConversationHandler.END
     
     async def add_node_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -583,7 +627,7 @@ Use buttons in messages to interact with nodes and tunnels."""
                 # Text message from keyboard
                 text = update.message.text
                 user_id = update.effective_user.id
-                if "ایران" in text or "iran" in text.lower():
+                if "ایران" in text or "iran" in text.lower() or self.t(user_id, "add_iran_node") in text:
                     role = "iran"
                 else:
                     role = "foreign"
@@ -1296,28 +1340,27 @@ Use buttons in messages to interact with nodes and tunnels."""
             if not text:
                 return
             
-            # Check if it's a keyboard button
-            if "📊" in text and self.t(user_id, "node_stats") in text:
+            # Check if it's a keyboard button (translations already have emojis)
+            if self.t(user_id, "node_stats") in text:
                 await self.cmd_nodes_callback(update.message)
-            elif "📊" in text and self.t(user_id, "tunnel_stats") in text:
+            elif self.t(user_id, "tunnel_stats") in text:
                 await self.cmd_tunnels_callback(update.message)
-            elif "➕" in text and self.t(user_id, "add_iran_node") in text:
-                await self.add_node_start(update, context)
-            elif "➕" in text and self.t(user_id, "add_foreign_node") in text:
-                await self.add_node_start(update, context)
-            elif "➖" in text and self.t(user_id, "remove_iran_node") in text:
+            elif self.t(user_id, "add_iran_node") in text or self.t(user_id, "add_foreign_node") in text:
+                # Let conversation handler handle this - don't process here
+                return
+            elif self.t(user_id, "remove_iran_node") in text:
                 await self.remove_node_start(update, context)
-            elif "➖" in text and self.t(user_id, "remove_foreign_node") in text:
+            elif self.t(user_id, "remove_foreign_node") in text:
                 await self.remove_node_start(update, context)
-            elif "🔗" in text and self.t(user_id, "create_tunnel") in text:
+            elif self.t(user_id, "create_tunnel") in text:
                 await self.create_tunnel_start(update, context)
-            elif "🗑️" in text and self.t(user_id, "remove_tunnel") in text:
+            elif self.t(user_id, "remove_tunnel") in text:
                 await self.remove_tunnel_start(update, context)
-            elif "📋" in text and self.t(user_id, "logs") in text:
+            elif self.t(user_id, "logs") in text:
                 await self.cmd_logs(update, context)
-            elif "📦" in text and self.t(user_id, "backup") in text:
+            elif self.t(user_id, "backup") in text:
                 await self.cmd_backup(update, context)
-            elif "🌐" in text and self.t(user_id, "language") in text:
+            elif self.t(user_id, "language") in text:
                 # Show language selection with persistent keyboard
                 keyboard = [
                     [InlineKeyboardButton(self.t(user_id, "english"), callback_data="lang_en")],
