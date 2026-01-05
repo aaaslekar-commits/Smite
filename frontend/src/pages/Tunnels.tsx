@@ -443,9 +443,6 @@ const Tunnels = () => {
                           </div>
                         ) : null
                       })()}
-
-                    {/* Node and Server Info */}
-                    <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                       {iranNode && (
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium">Node:</span>
