@@ -7,7 +7,7 @@
     <img src="assets/SmiteL.png" alt="Smite Logo" width="200"/>
   </picture>
   
-  **Modern tunnel management built on GOST, Backhaul, Rathole, Chisel, and FRP, featuring dual-node architecture, intuitive WebUI, real-time status tracking, and open-source freedom.**
+  **Modern tunnel management built on GOST, DNS Tunnel, ICMP Tunnel, Reverse TLS, KCP Tunnel, Backhaul, Rathole, Chisel, and FRP, featuring dual-node architecture, intuitive WebUI, real-time status tracking, and open-source freedom.**
   
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
@@ -23,7 +23,7 @@
 
 ## 🚀 Features
 
-- **Multiple Tunnel Types**: Support for TCP, UDP, WebSocket, gRPC, TCPMux via GOST, Backhaul, Rathole, Chisel, and FRP
+- **Multiple Tunnel Types**: Support for TCP, UDP, WebSocket, gRPC, TCPMux, DNS, ICMP, TLS, and KCP via GOST-compatible cores, plus Backhaul, Rathole, Chisel, and FRP
 - **Unified Node Management**: Iran and Foreign nodes are manageable from a single panel for reverse tunnels
 - **Web UI**: Modern, intuitive web interface with real-time connection status tracking
 - **CLI Tools**: Powerful command-line tools for management
@@ -189,6 +189,15 @@ smite-node edit-env     # Edit .env file
 - **TCPMux**: TCP multiplexing for multiple connections
 
 GOST tunnels run on Iran nodes and forward traffic to Foreign servers. When creating a GOST tunnel, specify both an Iran node and a Foreign server. The Iran node will listen on the specified port and forward all traffic to the Foreign server's IP address and port.
+
+
+### DNS/ICMP/Reverse TLS/KCP Tunnels (GOST-based)
+- **DNS Tunnel**: Route traffic over DNS transport
+- **ICMP Tunnel**: Route traffic over ICMP transport
+- **Reverse TLS**: TLS transport for encrypted forwarding
+- **KCP Tunnel**: KCP-based low-latency UDP-style transport
+
+These tunnel cores use the same forwarding flow as GOST and are managed directly from the panel.
 
 ### Backhaul Tunnels (Reverse Tunnel)
 - **TCP / UDP**: Low-latency reverse tunnels with optional UDP-over-TCP

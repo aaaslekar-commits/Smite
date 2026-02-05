@@ -128,6 +128,10 @@ interface BackhaulDisplayInfo {
   target: string
 }
 
+
+const GOST_LIKE_CORES = ['gost', 'dns_tunnel', 'icmp_tunnel', 'reverse_tls', 'kcp_tunnel'] as const
+
+const isGostLikeCore = (core: string) => GOST_LIKE_CORES.includes(core as (typeof GOST_LIKE_CORES)[number])
 const getBackhaulDisplayInfo = (spec: Record<string, any> | undefined): BackhaulDisplayInfo => {
   if (!spec) {
     return { controlPort: 'N/A', publicPort: 'N/A', target: 'N/A' }
@@ -333,6 +337,10 @@ const Tunnels = () => {
               chisel: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-800 dark:text-orange-200', border: 'border-orange-300 dark:border-orange-700' },
               frp: { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-800 dark:text-cyan-200', border: 'border-cyan-300 dark:border-cyan-700' },
               gost: { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-800 dark:text-indigo-200', border: 'border-indigo-300 dark:border-indigo-700' },
+              dns_tunnel: { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-800 dark:text-teal-200', border: 'border-teal-300 dark:border-teal-700' },
+              icmp_tunnel: { bg: 'bg-lime-100 dark:bg-lime-900/30', text: 'text-lime-800 dark:text-lime-200', border: 'border-lime-300 dark:border-lime-700' },
+              reverse_tls: { bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/30', text: 'text-fuchsia-800 dark:text-fuchsia-200', border: 'border-fuchsia-300 dark:border-fuchsia-700' },
+              kcp_tunnel: { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-800 dark:text-rose-200', border: 'border-rose-300 dark:border-rose-700' },
             }
             return coreColors[tunnel.core] || { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-200', border: 'border-gray-300 dark:border-gray-600' }
           }
@@ -624,7 +632,7 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
         updatedSpec.ports = ports
         updatedSpec.remote_port = ports[0]  // Keep for backward compatibility
         updatedSpec.listen_port = ports[0]  // Keep for backward compatibility
-      } else if (tunnel.core === 'gost' && (tunnel.type === 'tcp' || tunnel.type === 'udp' || tunnel.type === 'grpc' || tunnel.type === 'tcpmux')) {
+      } else if (isGostLikeCore(tunnel.core) && (tunnel.type === 'tcp' || tunnel.type === 'udp' || tunnel.type === 'grpc' || tunnel.type === 'tcpmux' || tunnel.type === 'dns' || tunnel.type === 'icmp' || tunnel.type === 'tls' || tunnel.type === 'kcp')) {
         const remoteIp = formData.remote_ip || '127.0.0.1'
         updatedSpec.remote_ip = remoteIp
         updatedSpec.ports = ports
@@ -693,7 +701,7 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
               required
             />
           </div>
-          {tunnel.core === 'gost' && (tunnel.type === 'tcp' || tunnel.type === 'udp' || tunnel.type === 'grpc' || tunnel.type === 'tcpmux') && (
+          {isGostLikeCore(tunnel.core) && (tunnel.type === 'tcp' || tunnel.type === 'udp' || tunnel.type === 'grpc' || tunnel.type === 'tcpmux' || tunnel.type === 'dns' || tunnel.type === 'icmp' || tunnel.type === 'tls' || tunnel.type === 'kcp') && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1009,7 +1017,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
 
   // Auto-populate remote_ip with foreign server IP when GOST is selected
   useEffect(() => {
-    if (formData.core === 'gost' && formData.foreign_node_id) {
+    if (isGostLikeCore(formData.core) && formData.foreign_node_id) {
       const selectedServer = servers.find(s => s.id === formData.foreign_node_id)
       if (selectedServer?.metadata?.ip_address) {
         setFormData(prev => ({
@@ -1044,7 +1052,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
         return
       }
       
-      if (formData.core === 'gost' && (formData.type === 'tcp' || formData.type === 'udp' || formData.type === 'grpc' || formData.type === 'tcpmux')) {
+      if (isGostLikeCore(formData.core) && (formData.type === 'tcp' || formData.type === 'udp' || formData.type === 'grpc' || formData.type === 'tcpmux' || formData.type === 'dns' || formData.type === 'icmp' || formData.type === 'tls' || formData.type === 'kcp')) {
         const remoteIp = formData.remote_ip || (formData.use_ipv6 ? '::1' : '127.0.0.1')
         // For GOST, ports are equal (listen_port = forward_to port)
         spec.remote_ip = remoteIp
@@ -1197,6 +1205,14 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
       newType = (formData.type === 'tcp' || formData.type === 'udp') ? formData.type : 'tcp'
     } else if (core === 'backhaul') {
       newType = backhaulState.transport
+    } else if (core === 'dns_tunnel') {
+      newType = 'dns'
+    } else if (core === 'icmp_tunnel') {
+      newType = 'icmp'
+    } else if (core === 'reverse_tls') {
+      newType = 'tls'
+    } else if (core === 'kcp_tunnel') {
+      newType = 'kcp'
     } else if (formData.type === 'rathole' || formData.type === 'chisel' || formData.core === 'backhaul') {
       newType = 'tcp'
     }
@@ -1278,6 +1294,10 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
               >
                 <option value="gost">GOST</option>
+                <option value="dns_tunnel">DNS Tunnel</option>
+                <option value="icmp_tunnel">ICMP Tunnel</option>
+                <option value="reverse_tls">Reverse TLS</option>
+                <option value="kcp_tunnel">KCP Tunnel</option>
                 <option value="rathole">Rathole</option>
                 <option value="backhaul">Backhaul</option>
                 <option value="chisel">Chisel</option>
@@ -1298,10 +1318,18 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
                   }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                disabled={formData.core === 'chisel'}
+                disabled={formData.core === 'chisel' || formData.core === 'dns_tunnel' || formData.core === 'icmp_tunnel' || formData.core === 'reverse_tls' || formData.core === 'kcp_tunnel'}
               >
                 {formData.core === 'chisel' ? (
                   <option value={formData.core}>{formData.core.charAt(0).toUpperCase() + formData.core.slice(1)}</option>
+                ) : formData.core === 'dns_tunnel' ? (
+                  <option value="dns">DNS</option>
+                ) : formData.core === 'icmp_tunnel' ? (
+                  <option value="icmp">ICMP</option>
+                ) : formData.core === 'reverse_tls' ? (
+                  <option value="tls">TLS</option>
+                ) : formData.core === 'kcp_tunnel' ? (
+                  <option value="kcp">KCP</option>
                 ) : formData.core === 'rathole' ? (
                   <>
                     <option value="tcp">TCP</option>
@@ -1332,7 +1360,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
             </div>
           </div>
 
-          {formData.core === 'gost' && (formData.type === 'tcp' || formData.type === 'udp' || formData.type === 'grpc' || formData.type === 'tcpmux') && (
+          {isGostLikeCore(formData.core) && (formData.type === 'tcp' || formData.type === 'udp' || formData.type === 'grpc' || formData.type === 'tcpmux' || formData.type === 'dns' || formData.type === 'icmp' || formData.type === 'tls' || formData.type === 'kcp') && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

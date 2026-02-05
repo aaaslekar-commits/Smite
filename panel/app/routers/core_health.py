@@ -514,4 +514,3 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
             await asyncio.sleep(0.5)
         except Exception as e:
             logger.error(f"Failed to restart tunnel {tunnel.id}: {e}", exc_info=True)
-
