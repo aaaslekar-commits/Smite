@@ -1148,6 +1148,14 @@ class GostAdapter:
                 cmd.append(f"-L=grpc://{listen_addr}/{target_addr}")
             elif tunnel_type == "tcpmux":
                 cmd.append(f"-L=tcpmux://{listen_addr}/{target_addr}")
+            elif tunnel_type == "dns":
+                cmd.append(f"-L=dns://{listen_addr}/{target_addr}")
+            elif tunnel_type == "icmp":
+                cmd.append(f"-L=icmp://{listen_addr}/{target_addr}")
+            elif tunnel_type == "tls":
+                cmd.append(f"-L=tls://{listen_addr}/{target_addr}")
+            elif tunnel_type == "kcp":
+                cmd.append(f"-L=kcp://{listen_addr}/{target_addr}")
             else:
                 raise ValueError(f"Unsupported GOST tunnel type: {tunnel_type}")
         
@@ -1235,12 +1243,21 @@ class AdapterManager:
     """Manager for core adapters"""
     
     def __init__(self):
+        gost_adapter = GostAdapter()
+        backhaul_adapter = BackhaulAdapter()
+        chisel_adapter = ChiselAdapter()
         self.adapters: Dict[str, CoreAdapter] = {
             "rathole": RatholeAdapter(),
-            "backhaul": BackhaulAdapter(),
-            "chisel": ChiselAdapter(),
+            "backhaul": backhaul_adapter,
+            "waterwall": backhaul_adapter,
+            "chisel": chisel_adapter,
+            "wstunnel": chisel_adapter,
             "frp": FrpAdapter(),
-            "gost": GostAdapter(),
+            "gost": gost_adapter,
+            "dns_tunnel": gost_adapter,
+            "icmp_tunnel": gost_adapter,
+            "reverse_tls": gost_adapter,
+            "kcp_tunnel": gost_adapter,
         }
         self.active_tunnels: Dict[str, CoreAdapter] = {}
         self.config_dir = Path("/var/lib/smite-node")
@@ -1361,7 +1378,7 @@ class AdapterManager:
                 mode = spec.get('mode', 'N/A')
                 logger.info(f"Restoring tunnel {tunnel_id}: core={tunnel_core}, mode={mode}, spec_keys={list(spec.keys())}")
                 
-                if tunnel_core in ["rathole", "backhaul", "chisel", "frp"] and mode == 'N/A':
+                if tunnel_core in ["rathole", "backhaul", "waterwall", "chisel", "wstunnel", "frp"] and mode == 'N/A':
                     logger.warning(f"Tunnel {tunnel_id}: Reverse tunnel missing mode field, defaulting to client")
                     spec['mode'] = 'client'
                 
@@ -1429,4 +1446,3 @@ class AdapterManager:
         """Cleanup all tunnels"""
         for tunnel_id in list(self.active_tunnels.keys()):
             await self.remove_tunnel(tunnel_id)
-

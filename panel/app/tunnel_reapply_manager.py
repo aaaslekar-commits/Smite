@@ -120,7 +120,7 @@ class TunnelReapplyManager:
             
             for tunnel in tunnels:
                 try:
-                    is_reverse_tunnel = tunnel.core in {"rathole", "backhaul", "chisel", "frp"}
+                    is_reverse_tunnel = tunnel.core in {"rathole", "backhaul", "waterwall", "chisel", "wstunnel", "frp"}
                     
                     if is_reverse_tunnel:
                         iran_node_id = tunnel.iran_node_id or tunnel.node_id
@@ -258,7 +258,7 @@ class TunnelReapplyManager:
                                 client_spec["transport"] = transport
                                 client_spec["token"] = token
                             
-                            elif tunnel.core == "backhaul":
+                            elif tunnel.core in ["backhaul", "waterwall"]:
                                 transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
                                 control_port = server_spec.get("control_port") or server_spec.get("public_port") or server_spec.get("listen_port") or 3080
                                 public_port = server_spec.get("public_port") or server_spec.get("listen_port") or control_port
@@ -289,7 +289,7 @@ class TunnelReapplyManager:
                                 if token:
                                     client_spec["token"] = token
                             
-                            elif tunnel.core == "chisel":
+                            elif tunnel.core in ["chisel", "wstunnel"]:
                                 listen_port = server_spec.get("listen_port") or server_spec.get("remote_port")
                                 if not listen_port:
                                     continue
@@ -357,7 +357,7 @@ class TunnelReapplyManager:
                         
                         spec = tunnel.spec.copy() if tunnel.spec else {}
                         
-                        if tunnel.core == "gost":
+                        if tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]:
                             spec["type"] = tunnel.type
                         
                         if tunnel.core == "frp":

@@ -143,16 +143,16 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
     
     logger.info(f"Creating tunnel: name={tunnel.name}, type={tunnel.type}, core={tunnel.core}, node_id={tunnel.node_id}")
     
-    if tunnel.spec and tunnel.core == "backhaul":
+    if tunnel.spec and tunnel.core in ["backhaul", "waterwall"]:
         ports_received = tunnel.spec.get("ports", [])
         logger.info(f"Backhaul tunnel creation: received ports from frontend: {ports_received} (type: {type(ports_received)}, length: {len(ports_received) if isinstance(ports_received, list) else 'N/A'})")
     
-    if tunnel.spec and tunnel.core != "backhaul":
+    if tunnel.spec and tunnel.core not in ["backhaul", "waterwall"]:
         ports = parse_ports_from_spec(tunnel.spec)
         if ports:
             tunnel.spec["ports"] = ports
     
-    is_reverse_tunnel = tunnel.core in {"rathole", "backhaul", "chisel", "frp"}
+    is_reverse_tunnel = tunnel.core in {"rathole", "backhaul", "waterwall", "chisel", "wstunnel", "frp"}
     foreign_node = None
     iran_node = None
     
@@ -233,12 +233,12 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
     await db.refresh(db_tunnel)
     
     try:
-        needs_gost_forwarding = db_tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and db_tunnel.core == "gost" and not is_reverse_tunnel
+        needs_gost_forwarding = db_tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux", "dns", "icmp", "tls", "kcp"] and db_tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"] and not is_reverse_tunnel
         needs_rathole_server = False
         needs_backhaul_server = False
         needs_chisel_server = False
         needs_frp_server = False
-        needs_node_apply = db_tunnel.core in {"rathole", "backhaul", "chisel", "frp"}
+        needs_node_apply = db_tunnel.core in {"rathole", "backhaul", "waterwall", "chisel", "wstunnel", "frp"}
         
         logger.info(
             "Tunnel %s: gost=%s, rathole=%s, backhaul=%s, chisel=%s, frp=%s",
@@ -325,7 +325,7 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 elif "tls" in server_spec:
                     client_spec["websocket_tls"] = server_spec["tls"]
                 
-            elif db_tunnel.core == "chisel":
+            elif db_tunnel.core in ["chisel", "wstunnel"]:
                 ports = parse_ports_from_spec(db_tunnel.spec)
                 if not ports:
                     listen_port = server_spec.get("listen_port") or server_spec.get("remote_port")
@@ -414,7 +414,7 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                     if "remote_port" not in client_spec:
                         client_spec["remote_port"] = db_tunnel.spec.get("remote_port") or db_tunnel.spec.get("listen_port") or bind_port
                 
-            elif db_tunnel.core == "backhaul":
+            elif db_tunnel.core in ["backhaul", "waterwall"]:
                 transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
                 import hashlib
                 port_hash = int(hashlib.md5(db_tunnel.id.encode()).hexdigest()[:8], 16)
@@ -1105,7 +1105,7 @@ async def update_tunnel(
         tunnel.name = tunnel_update.name
     if tunnel_update.spec is not None:
         # For Backhaul, ensure ports are preserved in the correct format
-        if tunnel.core == "backhaul" and tunnel_update.spec.get("ports"):
+        if tunnel.core in ["backhaul", "waterwall"] and tunnel_update.spec.get("ports"):
             # Ports should already be in the correct format from frontend, but ensure they're preserved
             ports = tunnel_update.spec.get("ports", [])
             logger.info(f"Backhaul tunnel update {tunnel_id}: preserving ports from update: {ports} (count: {len(ports) if isinstance(ports, list) else 'N/A'})")
@@ -1121,12 +1121,12 @@ async def update_tunnel(
     
     if spec_changed:
         try:
-            needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and tunnel.core == "gost"
+            needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux", "dns", "icmp", "tls", "kcp"] and tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]
             needs_rathole_server = tunnel.core == "rathole"
-            needs_backhaul_server = tunnel.core == "backhaul"
-            needs_chisel_server = tunnel.core == "chisel"
+            needs_backhaul_server = tunnel.core in ["backhaul", "waterwall"]
+            needs_chisel_server = tunnel.core in ["chisel", "wstunnel"]
             needs_frp_server = tunnel.core == "frp"
-            needs_node_apply = tunnel.core in {"rathole", "backhaul", "chisel", "frp"}
+            needs_node_apply = tunnel.core in {"rathole", "backhaul", "waterwall", "chisel", "wstunnel", "frp"}
             
             if needs_gost_forwarding:
                 listen_port = tunnel.spec.get("listen_port")
@@ -1327,7 +1327,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
     
     client = NodeClient()
     
-    is_reverse_tunnel = tunnel.core in {"rathole", "backhaul", "chisel", "frp"}
+    is_reverse_tunnel = tunnel.core in {"rathole", "backhaul", "waterwall", "chisel", "wstunnel", "frp"}
     foreign_node = None
     iran_node = None
     
@@ -1354,7 +1354,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
             try:
                 spec = tunnel.spec.copy() if tunnel.spec else {}
                 
-                if tunnel.core == "backhaul":
+                if tunnel.core in ["backhaul", "waterwall"]:
                     transport = spec.get("transport", "tcp")
                     control_port = spec.get("control_port") or spec.get("public_port") or spec.get("listen_port") or 3080
                     public_port = spec.get("public_port") or spec.get("listen_port") or control_port
@@ -1542,7 +1542,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                     client_spec["transport"] = transport
                     client_spec["token"] = token
                 
-                elif tunnel.core == "chisel":
+                elif tunnel.core in ["chisel", "wstunnel"]:
                     listen_port = spec.get("listen_port") or spec.get("remote_port")
                     if not listen_port:
                         tunnel.status = "error"
@@ -1587,7 +1587,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                         "tunnel_id": tunnel.id,
                         "core": tunnel.core,
                         "type": tunnel.type,
-                        "spec": server_spec if tunnel.core in ["backhaul", "frp", "rathole", "chisel"] else spec
+                        "spec": server_spec if tunnel.core in ["backhaul", "waterwall", "frp", "rathole", "chisel", "wstunnel"] else spec
                     }
                 )
                 
@@ -1610,7 +1610,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                         "tunnel_id": tunnel.id,
                         "core": tunnel.core,
                         "type": tunnel.type,
-                        "spec": client_spec if tunnel.core in ["backhaul", "frp", "rathole", "chisel"] else spec
+                        "spec": client_spec if tunnel.core in ["backhaul", "waterwall", "frp", "rathole", "chisel", "wstunnel"] else spec
                     }
                 )
                 
@@ -1652,7 +1652,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
         spec_for_node = tunnel.spec.copy() if tunnel.spec else {}
         logger.info(f"Reapplying tunnel {tunnel.id} (core={tunnel.core}, type={tunnel.type}): original spec={spec_for_node}")
         
-        if tunnel.core == "gost":
+        if tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]:
             spec_for_node["type"] = tunnel.type
         
         if tunnel.core == "frp":
@@ -1749,10 +1749,10 @@ async def delete_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Dep
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found")
     
-    needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc"] and tunnel.core == "gost"
+    needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux", "dns", "icmp", "tls", "kcp"] and tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]
     needs_rathole_server = tunnel.core == "rathole"
-    needs_backhaul_server = tunnel.core == "backhaul"
-    needs_chisel_server = tunnel.core == "chisel"
+    needs_backhaul_server = tunnel.core in ["backhaul", "waterwall"]
+    needs_chisel_server = tunnel.core in ["chisel", "wstunnel"]
     needs_frp_server = tunnel.core == "frp"
     
     if needs_gost_forwarding:
