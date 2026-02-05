@@ -1,4 +1,4 @@
-"""Gost-based forwarding service for stable TCP/UDP/WS/gRPC tunnels"""
+"""Gost-based forwarding service for stable tunnel protocols."""
 import subprocess
 import time
 import logging
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class GostForwarder:
-    """Manages TCP/UDP/WS/gRPC forwarding using gost"""
+    """Manages forwarding using gost."""
     
     def __init__(self):
         self.config_dir = Path("/app/data/gost")
@@ -27,7 +27,7 @@ class GostForwarder:
             tunnel_id: Unique tunnel identifier
             local_port: Port on panel to listen on
             forward_to: Target address:port (e.g., "127.0.0.1:9999" or "[2001:db8::1]:443")
-            tunnel_type: Type of forwarding (tcp, udp, ws, grpc)
+            tunnel_type: Type of forwarding (tcp, udp, ws, grpc, tcpmux, dns, icmp, tls, kcp)
             path: Optional path for WS tunnels (ignored, kept for compatibility)
             use_ipv6: Whether to use IPv6 for listening (default: False for IPv4)
 
@@ -88,6 +88,26 @@ class GostForwarder:
                 cmd = [
                     "/usr/local/bin/gost",
                     f"-L=tcpmux://{listen_addr}/{target_addr}"
+                ]
+            elif tunnel_type == "dns":
+                cmd = [
+                    "/usr/local/bin/gost",
+                    f"-L=dns://{listen_addr}/{target_addr}"
+                ]
+            elif tunnel_type == "icmp":
+                cmd = [
+                    "/usr/local/bin/gost",
+                    f"-L=icmp://{listen_addr}/{target_addr}"
+                ]
+            elif tunnel_type == "tls":
+                cmd = [
+                    "/usr/local/bin/gost",
+                    f"-L=tls://{listen_addr}/{target_addr}"
+                ]
+            elif tunnel_type == "kcp":
+                cmd = [
+                    "/usr/local/bin/gost",
+                    f"-L=kcp://{listen_addr}/{target_addr}"
                 ]
             else:
                 raise ValueError(f"Unsupported tunnel type: {tunnel_type}")

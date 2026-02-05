@@ -233,7 +233,7 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
     await db.refresh(db_tunnel)
     
     try:
-        needs_gost_forwarding = db_tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and db_tunnel.core == "gost" and not is_reverse_tunnel
+        needs_gost_forwarding = db_tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux", "dns", "icmp", "tls", "kcp"] and db_tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"] and not is_reverse_tunnel
         needs_rathole_server = False
         needs_backhaul_server = False
         needs_chisel_server = False
@@ -1121,7 +1121,7 @@ async def update_tunnel(
     
     if spec_changed:
         try:
-            needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and tunnel.core == "gost"
+            needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux", "dns", "icmp", "tls", "kcp"] and tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]
             needs_rathole_server = tunnel.core == "rathole"
             needs_backhaul_server = tunnel.core == "backhaul"
             needs_chisel_server = tunnel.core == "chisel"
@@ -1652,7 +1652,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
         spec_for_node = tunnel.spec.copy() if tunnel.spec else {}
         logger.info(f"Reapplying tunnel {tunnel.id} (core={tunnel.core}, type={tunnel.type}): original spec={spec_for_node}")
         
-        if tunnel.core == "gost":
+        if tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]:
             spec_for_node["type"] = tunnel.type
         
         if tunnel.core == "frp":
@@ -1749,7 +1749,7 @@ async def delete_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Dep
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found")
     
-    needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc"] and tunnel.core == "gost"
+    needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux", "dns", "icmp", "tls", "kcp"] and tunnel.core in ["gost", "dns_tunnel", "icmp_tunnel", "reverse_tls", "kcp_tunnel"]
     needs_rathole_server = tunnel.core == "rathole"
     needs_backhaul_server = tunnel.core == "backhaul"
     needs_chisel_server = tunnel.core == "chisel"
