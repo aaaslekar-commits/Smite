@@ -1344,7 +1344,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
                     <option value="tcp">TCP</option>
                     <option value="udp">UDP</option>
                   </>
-                ) : formData.core === 'backhaul' ? (
+                ) : (formData.core === 'backhaul' || formData.core === 'waterwall') ? (
                   <>
                     <option value="tcp">TCP</option>
                     <option value="udp">UDP</option>
@@ -1404,7 +1404,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
             </div>
           )}
           
-          {formData.core === 'backhaul' && (
+          {(formData.core === 'backhaul' || formData.core === 'waterwall') && (
             <BackhaulForm
               state={backhaulState}
               onChange={(partial) => {
@@ -1478,7 +1478,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
             </>
           )}
           
-          {formData.core === 'chisel' && (
+          {(formData.core === 'chisel' || formData.core === 'wstunnel') && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
