@@ -16,7 +16,7 @@ from app.node_client import NodeClient
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-CORES = ["backhaul", "rathole", "chisel", "frp"]
+CORES = ["backhaul", "waterwall", "rathole", "chisel", "wstunnel", "frp"]
 
 
 class CoreHealthResponse(BaseModel):
@@ -371,7 +371,7 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
                     local_addr = f"{iran_node_ip}:{proxy_port}"
                 client_spec["local_addr"] = local_addr
             
-            elif core == "chisel":
+            elif core in ["chisel", "wstunnel"]:
                 listen_port = server_spec.get("listen_port") or server_spec.get("remote_port")
                 if not listen_port:
                     logger.warning(f"Tunnel {tunnel.id}: Missing listen_port, skipping")
@@ -428,7 +428,7 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
                 client_spec["local_ip"] = local_ip
                 client_spec["local_port"] = local_port
             
-            elif core == "backhaul":
+            elif core in ["backhaul", "waterwall"]:
                 transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
                 control_port = server_spec.get("control_port") or server_spec.get("listen_port") or 3080
                 public_port = server_spec.get("public_port") or server_spec.get("remote_port") or server_spec.get("listen_port")
@@ -514,4 +514,3 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
             await asyncio.sleep(0.5)
         except Exception as e:
             logger.error(f"Failed to restart tunnel {tunnel.id}: {e}", exc_info=True)
-
